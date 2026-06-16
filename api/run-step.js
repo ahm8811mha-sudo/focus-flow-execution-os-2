@@ -10,13 +10,21 @@ const actionTypes = {
   calendar: 'جدولة'
 };
 
-function runNextStep(mission) {
+function runStep(mission, requestedStepId) {
   if (!mission || !Array.isArray(mission.steps)) {
     throw new Error('Valid mission is required');
   }
 
   const steps = mission.steps.map((step) => ({ ...step }));
-  const activeIndex = steps.findIndex((step) => step.status === 'running' || step.status === 'pending');
+  let activeIndex = -1;
+
+  if (requestedStepId) {
+    activeIndex = steps.findIndex((step) => step.id === requestedStepId);
+  }
+
+  if (activeIndex === -1) {
+    activeIndex = steps.findIndex((step) => step.status === 'running' || step.status === 'pending');
+  }
 
   if (activeIndex === -1) {
     return {
@@ -28,11 +36,31 @@ function runNextStep(mission) {
     };
   }
 
-  const completedStep = steps[activeIndex];
+  const selectedStep = steps[activeIndex];
+
+  if (selectedStep.status === 'completed') {
+    return {
+      ...mission,
+      logs: [...(mission.logs || []), `الآن - الخطوة مكتملة مسبقًا: ${selectedStep.title}.`]
+    };
+  }
+
+  if (selectedStep.type === 'approval' || selectedStep.status === 'needs_approval') {
+    steps[activeIndex] = { ...selectedStep, status: 'needs_approval' };
+    return {
+      ...mission,
+      steps,
+      nextAction: selectedStep.title,
+      blocker: 'هذه الخطوة تحتاج موافقتك من تبويب اعتماد أو من لوحة تقدم',
+      logs: [...(mission.logs || []), `الآن - لا يمكن تجاوز خطوة موافقة: ${selectedStep.title}.`]
+    };
+  }
+
+  const completedStep = selectedStep;
   steps[activeIndex] = {
     ...completedStep,
     status: 'completed',
-    evidence: `${completedStep.evidence || 'تم تنفيذ الخطوة.'} تم تحديثها كمكتملة عبر Vercel API.`
+    evidence: `${completedStep.evidence || 'تم تنفيذ الخطوة.'} تم تنفيذها الآن عبر Vercel API.`
   };
 
   const nextIndex = steps.findIndex((step, index) => index > activeIndex && step.status === 'pending');
@@ -54,17 +82,18 @@ function runNextStep(mission) {
     id: uid('output'),
     type: actionTypes[completedStep.type] || 'تحديث',
     title: `نتيجة: ${completedStep.title}`,
-    status: 'تم التحديث',
-    detail: completedStep.evidence || 'تم تحديث الخطوة وإضافتها إلى سجل التنفيذ.'
+    status: 'جاهز',
+    detail: completedStep.evidence || 'تم تنفيذ الخطوة وإضافتها إلى سجل التنفيذ.'
   };
 
   return {
     ...mission,
+    status: nextIndex === -1 ? 'completed' : 'running',
     steps,
     nextAction,
     blocker,
     outputs: [...(mission.outputs || []), output],
-    logs: [...(mission.logs || []), `الآن - تم تشغيل خطوة عبر Vercel API: ${completedStep.title}.`]
+    logs: [...(mission.logs || []), `الآن - تم تنفيذ خطوة الآن: ${completedStep.title}.`]
   };
 }
 
@@ -76,7 +105,7 @@ export default async function handler(req, res) {
 
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
-    const mission = runNextStep(body.mission);
+    const mission = runStep(body.mission, body.stepId);
     return res.status(200).json({ mission });
   } catch (error) {
     console.error(error);
