@@ -31,6 +31,11 @@ const seedMissions = [
     nextAction: 'تأكيد نوع الشركة والبيانات المطلوبة',
     blocker: 'ينتظر موافقتك على نوع الكيان',
     createdAt: 'اليوم 09:00',
+    outputs: [
+      { id: 'o1', type: 'خطة', title: 'ملف تنفيذ تحويل المؤسسة إلى شركة', status: 'جاهز', detail: 'الخطة مقسمة إلى مراحل وخطوات قابلة للمتابعة.' },
+      { id: 'o2', type: 'قائمة', title: 'قائمة البيانات الناقصة', status: 'جاهز', detail: 'تحتاج تأكيد نوع الشركة، بيانات الشركاء، وبيانات السجل الحالي.' },
+      { id: 'o3', type: 'تذكير', title: 'متابعة حالة الطلب', status: 'مجدول مبدئيًا', detail: 'سيظهر في سجل التنفيذ إلى أن يتم ربط Google Calendar.' }
+    ],
     steps: [
       { id: 's1', title: 'تحليل الطلب وتحديد المسار النظامي', type: 'internal', status: 'completed', time: 'اليوم 09:00', evidence: 'تم تحديد المسار: تحويل مؤسسة إلى شركة.' },
       { id: 's2', title: 'استخراج المتطلبات والمستندات المطلوبة', type: 'browser', status: 'completed', time: 'اليوم 09:15', evidence: 'تم تجهيز قائمة بيانات أولية.' },
@@ -56,18 +61,24 @@ function uid(prefix = 'id') {
 }
 
 function buildMission(command) {
-  const title = command.length > 42 ? command.slice(0, 42).trim() + '...' : command.trim();
+  const cleanCommand = command.trim();
+  const title = cleanCommand.length > 42 ? cleanCommand.slice(0, 42).trim() + '...' : cleanCommand;
   return {
     id: uid('mission'),
     title: title || 'هدف تنفيذي جديد',
-    command,
+    command: cleanCommand,
     status: 'running',
     priority: 'عالية',
     owner: 'AI Execution Agent',
     due: 'يتم تحديده تلقائيًا',
-    nextAction: 'مراجعة خطة التنفيذ واعتماد نقطة البداية',
-    blocker: 'ينتظر اعتمادك للبدء في الخطوات الحساسة',
+    nextAction: 'جمع المتطلبات والبيانات الناقصة',
+    blocker: 'لا يوجد عائق حاليًا',
     createdAt: 'الآن',
+    outputs: [
+      { id: uid('output'), type: 'خطة', title: 'ملف التنفيذ الرئيسي', status: 'جاهز', detail: 'تم تحويل طلبك إلى Mission وخطوات متابعة.' },
+      { id: uid('output'), type: 'قائمة', title: 'البيانات المطلوبة منك', status: 'جاهز', detail: 'سيتم تحديثها كلما اكتشف الوكيل نقصًا أو قرارًا مطلوبًا.' },
+      { id: uid('output'), type: 'سجل', title: 'سجل التنفيذ', status: 'نشط', detail: 'أي تطور يظهر مباشرة في سجل هذه المهمة.' }
+    ],
     steps: [
       { id: uid('step'), title: 'فهم الهدف وتحويله إلى Mission', type: 'internal', status: 'completed', time: 'الآن', evidence: 'تم تحليل الطلب واستخراج النتيجة المطلوبة.' },
       { id: uid('step'), title: 'بناء خطة تنفيذ مضمونة متعددة المراحل', type: 'internal', status: 'completed', time: 'الآن', evidence: 'تم إنشاء خطة أولية قابلة للتعديل.' },
@@ -83,15 +94,27 @@ function buildMission(command) {
       'الآن - تم استلام الأمر.',
       'الآن - تم تحويل الأمر إلى Mission تنفيذية.',
       'الآن - تم إنشاء خطوات تنفيذية وحالات متابعة.',
-      'الآن - تم إنشاء بند موافقة قبل أي إجراء حساس.'
+      'الآن - تم إنشاء صفحة متابعة خاصة لهذا الطلب.'
     ]
   };
 }
 
 function progressOf(mission) {
-  if (!mission.steps.length) return 0;
+  if (!mission?.steps?.length) return 0;
   const completed = mission.steps.filter((step) => step.status === 'completed').length;
   return Math.round((completed / mission.steps.length) * 100);
+}
+
+function getCurrentStep(mission) {
+  if (!mission) return null;
+  return mission.steps.find((step) => step.status === 'running')
+    || mission.steps.find((step) => step.status === 'needs_approval')
+    || mission.steps.find((step) => step.status === 'pending')
+    || mission.steps[mission.steps.length - 1];
+}
+
+function openApprovalsCount(mission) {
+  return mission?.approvals?.filter((item) => item.status === 'open').length || 0;
 }
 
 function StatusPill({ status }) {
@@ -105,15 +128,15 @@ function TypeBadge({ type }) {
 function TopBar({ activeView, setActiveView }) {
   const items = [
     ['command', 'Command'],
+    ['progress', 'Progress'],
     ['missions', 'Missions'],
-    ['agent', 'Browser Agent'],
     ['approvals', 'Approvals'],
     ['system', 'System']
   ];
 
   return (
     <header className="topbar">
-      <button className="brand" onClick={() => setActiveView('command')}>
+      <button className="brand" onClick={() => setActiveView('progress')}>
         <span className="brand-orb" />
         <span>
           <strong>Focus Flow</strong>
@@ -134,8 +157,8 @@ function TopBar({ activeView, setActiveView }) {
 function MobileNav({ activeView, setActiveView }) {
   const items = [
     ['command', '⌘', 'أمر'],
+    ['progress', '◉', 'تقدم'],
     ['missions', '◎', 'أهداف'],
-    ['agent', '◈', 'وكيل'],
     ['approvals', '✓', 'اعتماد'],
     ['system', '⚙', 'نظام']
   ];
@@ -161,7 +184,7 @@ function CommandCenter({ command, setCommand, onCreate, missions, selectedMissio
         </div>
         <h1>اطلب الهدف، والنظام يدير التنفيذ.</h1>
         <p>
-          Focus Flow لم يعد تطبيق مهام. هو نظام يحول أوامرك الكبيرة إلى Missions وخطوات تنفيذية وموافقات وسجل متابعة حتى الإغلاق.
+          اكتب طلبك هنا. بعد الإنشاء ستجده مباشرة في تبويب <strong>تقدم</strong>، وهناك تتابع كل شيء: الخطة، الملفات، الاعتمادات، سجل التنفيذ، والخطوة الحالية.
         </p>
         <div className="command-box">
           <textarea
@@ -175,10 +198,10 @@ function CommandCenter({ command, setCommand, onCreate, missions, selectedMissio
 
       <section className="grid two-columns">
         <div className="glass-card next-card">
-          <span className="section-eyebrow">الإجراء التالي</span>
-          <h2>{selectedMission?.nextAction || 'لا يوجد إجراء نشط'}</h2>
-          <p>{selectedMission?.blocker || 'ابدأ بكتابة أمر تنفيذي جديد.'}</p>
-          <button className="secondary-action" onClick={() => setActiveView('missions')}>فتح ملف التنفيذ</button>
+          <span className="section-eyebrow">أين أجد تطور طلبي؟</span>
+          <h2>افتح تبويب تقدم</h2>
+          <p>هذا هو المكان المركزي لمتابعة كل طلب أنشأته. ستجد النسبة، الخطوة الحالية، المخرجات، الاعتمادات، والسجل.</p>
+          <button className="secondary-action" onClick={() => setActiveView('progress')}>فتح لوحة التقدم</button>
         </div>
 
         <div className="glass-card metrics-card">
@@ -188,26 +211,13 @@ function CommandCenter({ command, setCommand, onCreate, missions, selectedMissio
             <span>Missions نشطة</span>
           </div>
           <div className="metric-row">
-            <strong>{missions.reduce((sum, mission) => sum + mission.approvals.filter((item) => item.status === 'open').length, 0)}</strong>
+            <strong>{missions.reduce((sum, mission) => sum + openApprovalsCount(mission), 0)}</strong>
             <span>موافقات تنتظرك</span>
           </div>
           <div className="metric-row">
-            <strong>Supervised</strong>
-            <span>Browser Automation</span>
+            <strong>{selectedMission ? `${progressOf(selectedMission)}%` : '0%'}</strong>
+            <span>تقدم آخر طلب</span>
           </div>
-        </div>
-      </section>
-
-      <section className="glass-card mission-strip">
-        <div className="section-header">
-          <div>
-            <span className="section-eyebrow">Missions</span>
-            <h2>الأهداف التنفيذية النشطة</h2>
-          </div>
-          <button className="ghost-action" onClick={() => setActiveView('missions')}>عرض الكل</button>
-        </div>
-        <div className="mission-list compact">
-          {missions.slice(0, 3).map((mission) => <MissionCard key={mission.id} mission={mission} compact />)}
         </div>
       </section>
     </main>
@@ -233,6 +243,137 @@ function MissionCard({ mission, onSelect, compact = false }) {
   );
 }
 
+function ProgressView({ missions, selectedId, setSelectedId, selectedMission, setActiveView, onAdvance, onApprove }) {
+  const mission = selectedMission;
+  const currentStep = getCurrentStep(mission);
+  const progress = progressOf(mission);
+  const approvals = mission?.approvals?.filter((approval) => approval.status === 'open') || [];
+  const completedSteps = mission?.steps?.filter((step) => step.status === 'completed').length || 0;
+
+  if (!mission) {
+    return (
+      <main className="view">
+        <section className="hero-card glass-card">
+          <span className="section-eyebrow">Progress Center</span>
+          <h1>لا يوجد طلب بعد.</h1>
+          <p>ابدأ من تبويب أمر واكتب هدفك. بعدها سيظهر هنا ملف متابعة كامل.</p>
+          <button className="primary-action" onClick={() => setActiveView('command')}>إنشاء طلب جديد</button>
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <main className="view">
+      <section className="hero-card glass-card">
+        <div className="hero-meta"><span className="live-dot" /> مركز متابعة الطلبات</div>
+        <h1>هنا تشوف كل تطور لطلبك.</h1>
+        <p>هذه الصفحة هي مكان المتابعة الرئيسي. أي طلب تنشئه يتحول إلى Mission وتظهر هنا النسبة، الخطوة الحالية، الملفات، الاعتمادات، وسجل التنفيذ.</p>
+        <div className="command-box">
+          <select
+            value={mission.id}
+            onChange={(event) => setSelectedId(event.target.value)}
+            style={{ minHeight: 54, borderRadius: 18, padding: '0 16px', color: 'white', background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.12)' }}
+          >
+            {missions.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+          </select>
+          <button className="primary-action" onClick={() => onAdvance(mission.id)}>شغّل الخطوة التالية</button>
+        </div>
+      </section>
+
+      <section className="grid two-columns">
+        <div className="glass-card next-card">
+          <span className="section-eyebrow">الطلب الحالي</span>
+          <h2>{mission.title}</h2>
+          <p>{mission.command}</p>
+          <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>
+          <div className="mission-card-bottom">
+            <span>{progress}% مكتمل</span>
+            <span>{completedSteps} من {mission.steps.length} خطوات</span>
+          </div>
+        </div>
+
+        <div className="glass-card next-card">
+          <span className="section-eyebrow">الخطوة الحالية</span>
+          <h2>{currentStep?.title || 'لا توجد خطوة حالية'}</h2>
+          <p>{currentStep?.evidence || mission.blocker}</p>
+          <div style={{ marginTop: 18, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {currentStep && <StatusPill status={currentStep.status} />}
+            {currentStep && <TypeBadge type={currentStep.type} />}
+          </div>
+        </div>
+      </section>
+
+      <section className="grid two-columns">
+        <div className="glass-card next-card">
+          <span className="section-eyebrow">المخرجات الجاهزة</span>
+          <h2>كل شيء يجهزه النظام يظهر هنا</h2>
+          <div className="steps-list">
+            {mission.outputs?.map((output) => (
+              <article key={output.id} className="step-card completed">
+                <div className="step-index">✦</div>
+                <div className="step-content">
+                  <div className="step-topline"><TypeBadge type="document" /><span className="priority">{output.status}</span></div>
+                  <h4>{output.title}</h4>
+                  <p>{output.detail}</p>
+                  <small>{output.type}</small>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+
+        <div className="glass-card next-card">
+          <span className="section-eyebrow">الموافقات المطلوبة منك</span>
+          <h2>{approvals.length ? `${approvals.length} موافقة تنتظرك` : 'لا يوجد عائق حاليًا'}</h2>
+          <div className="steps-list">
+            {approvals.length ? approvals.map((approval) => (
+              <article key={approval.id} className="step-card needs_approval">
+                <div className="step-index">✓</div>
+                <div className="step-content">
+                  <div className="step-topline"><span className="risk-badge">{approval.risk}</span><StatusPill status="needs_approval" /></div>
+                  <h4>{approval.title}</h4>
+                  <p>{approval.detail}</p>
+                  <button className="primary-action small" style={{ marginTop: 14 }} onClick={() => onApprove(mission.id, approval.id)}>اعتماد الآن</button>
+                </div>
+              </article>
+            )) : (
+              <article className="step-card completed">
+                <div className="step-index">✓</div>
+                <div className="step-content">
+                  <h4>التنفيذ غير متوقف</h4>
+                  <p>اضغط شغّل الخطوة التالية لمتابعة تقدم الطلب داخل النسخة الحالية.</p>
+                </div>
+              </article>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section className="glass-card mission-detail">
+        <div className="section-header">
+          <div>
+            <span className="section-eyebrow">Execution Log</span>
+            <h2>سجل التنفيذ لهذا الطلب</h2>
+          </div>
+          <button className="secondary-action" onClick={() => setActiveView('missions')}>فتح الخطة التفصيلية</button>
+        </div>
+        <div className="steps-list">
+          {mission.logs.slice().reverse().map((log, index) => (
+            <article key={`${log}-${index}`} className="step-card">
+              <div className="step-index">{mission.logs.length - index}</div>
+              <div className="step-content">
+                <h4>{log}</h4>
+                <p>{mission.title}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    </main>
+  );
+}
+
 function MissionsView({ missions, selectedId, setSelectedId }) {
   const selectedMission = missions.find((mission) => mission.id === selectedId) || missions[0];
   return (
@@ -241,7 +382,7 @@ function MissionsView({ missions, selectedId, setSelectedId }) {
         <div>
           <span className="section-eyebrow">Mission Control</span>
           <h1>Missions وليست مشاريع عادية</h1>
-          <p>كل أمر يتحول إلى ملف تنفيذي حي له خطة، حالات، موافقات، Browser Agent، وسجل تنفيذ.</p>
+          <p>هنا تجد الخطة التفصيلية الكاملة لكل هدف. لمتابعة التطور اليومي افتح تبويب تقدم.</p>
         </div>
       </section>
 
@@ -314,66 +455,6 @@ function ExecutionPlan({ mission }) {
   );
 }
 
-function BrowserAgentView({ missions }) {
-  const browserSteps = missions.flatMap((mission) => mission.steps.filter((step) => step.type === 'browser').map((step) => ({ ...step, missionTitle: mission.title })));
-  return (
-    <main className="view agent-view">
-      <section className="browser-hero glass-card">
-        <div>
-          <span className="section-eyebrow">Supervised Browser Automation</span>
-          <h1>Browser Agent ينفذ، ويتوقف عند الحسّاس.</h1>
-          <p>الوكيل يستطيع فتح المواقع، استخراج المتطلبات، تجهيز النماذج، وتوثيق النتائج. يتوقف عند تسجيل الدخول، OTP، الدفع، التوقيع، أو الإرسال النهائي.</p>
-        </div>
-        <div className="agent-status-console">
-          <span className="console-dot" />
-          <strong>Ready</strong>
-          <small>Human approval required for sensitive actions</small>
-        </div>
-      </section>
-
-      <section className="grid two-columns">
-        <div className="glass-card">
-          <span className="section-eyebrow">Capabilities</span>
-          <div className="capability-list">
-            <span>فتح المواقع الرسمية</span>
-            <span>قراءة المتطلبات</span>
-            <span>تعبئة النماذج المبدئية</span>
-            <span>التقاط Evidence</span>
-            <span>تحديث حالة Mission</span>
-            <span>التوقف عند المخاطر</span>
-          </div>
-        </div>
-        <div className="glass-card warning-card">
-          <span className="section-eyebrow">Safety Gates</span>
-          <h2>لا دفع، لا توقيع، لا إرسال نهائي بدون إذنك.</h2>
-          <p>هذه هي الصيغة الصحيحة: تنفيذ آلي بإشرافك وليس وكيل حر يضغط كل شيء.</p>
-        </div>
-      </section>
-
-      <section className="glass-card">
-        <div className="section-header">
-          <div>
-            <span className="section-eyebrow">Browser Queue</span>
-            <h2>خطوات المتصفح الآلي</h2>
-          </div>
-        </div>
-        <div className="steps-list">
-          {browserSteps.map((step) => (
-            <article key={step.id} className={`step-card ${step.status}`}>
-              <div className="step-index">◈</div>
-              <div className="step-content">
-                <div className="step-topline"><strong>{step.missionTitle}</strong><StatusPill status={step.status} /></div>
-                <h4>{step.title}</h4>
-                <p>{step.evidence}</p>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-    </main>
-  );
-}
-
 function ApprovalsView({ missions, onApprove }) {
   const approvals = missions.flatMap((mission) => mission.approvals.map((approval) => ({ ...approval, missionId: mission.id, missionTitle: mission.title })));
   return (
@@ -387,7 +468,7 @@ function ApprovalsView({ missions, onApprove }) {
       </section>
 
       <section className="approval-list">
-        {approvals.map((approval) => (
+        {approvals.filter((approval) => approval.status === 'open').map((approval) => (
           <article key={approval.id} className="approval-card glass-card">
             <div>
               <span className="risk-badge">{approval.risk}</span>
@@ -400,6 +481,15 @@ function ApprovalsView({ missions, onApprove }) {
             </button>
           </article>
         ))}
+        {!approvals.some((approval) => approval.status === 'open') && (
+          <article className="approval-card glass-card">
+            <div>
+              <span className="risk-badge">واضح</span>
+              <h2>لا توجد موافقات مفتوحة</h2>
+              <p>ارجع إلى تبويب تقدم وشغّل الخطوة التالية.</p>
+            </div>
+          </article>
+        )}
       </section>
     </main>
   );
@@ -454,8 +544,57 @@ function ExecutionLog({ missions }) {
   );
 }
 
+function nextMissionState(mission) {
+  const steps = [...mission.steps];
+  const activeIndex = steps.findIndex((step) => step.status === 'running' || step.status === 'pending');
+
+  if (activeIndex === -1) {
+    return {
+      ...mission,
+      status: 'completed',
+      blocker: 'اكتملت جميع الخطوات المتاحة داخل النسخة الحالية',
+      nextAction: 'مراجعة النتائج والمخرجات',
+      logs: [...mission.logs, 'الآن - لا توجد خطوات إضافية قابلة للتشغيل داخل الواجهة.']
+    };
+  }
+
+  const completedStep = steps[activeIndex];
+  steps[activeIndex] = {
+    ...completedStep,
+    status: 'completed',
+    evidence: `${completedStep.evidence} تم تحديثها كمكتملة داخل لوحة التقدم.`
+  };
+
+  const nextIndex = steps.findIndex((step, index) => index > activeIndex && step.status === 'pending');
+  let nextAction = 'مراجعة النتائج والمخرجات';
+  let blocker = 'لا يوجد عائق حاليًا';
+
+  if (nextIndex !== -1) {
+    if (steps[nextIndex].type === 'approval') {
+      steps[nextIndex] = { ...steps[nextIndex], status: 'needs_approval' };
+      nextAction = steps[nextIndex].title;
+      blocker = 'ينتظر موافقتك قبل الاستمرار';
+    } else {
+      steps[nextIndex] = { ...steps[nextIndex], status: 'running' };
+      nextAction = steps[nextIndex].title;
+    }
+  }
+
+  return {
+    ...mission,
+    steps,
+    nextAction,
+    blocker,
+    outputs: [
+      ...(mission.outputs || []),
+      { id: uid('output'), type: actionTypes[completedStep.type] || 'تحديث', title: `نتيجة: ${completedStep.title}`, status: 'تم التحديث', detail: completedStep.evidence }
+    ],
+    logs: [...mission.logs, `الآن - تم تحديث خطوة: ${completedStep.title}.`]
+  };
+}
+
 export default function App() {
-  const [activeView, setActiveView] = useState('command');
+  const [activeView, setActiveView] = useState('progress');
   const [command, setCommand] = useState('');
   const [missions, setMissions] = useState(() => {
     try {
@@ -471,6 +610,10 @@ export default function App() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(missions));
   }, [missions]);
 
+  useEffect(() => {
+    if (!selectedId && missions[0]) setSelectedId(missions[0].id);
+  }, [missions, selectedId]);
+
   const selectedMission = useMemo(() => missions.find((mission) => mission.id === selectedId) || missions[0], [missions, selectedId]);
 
   function createMission() {
@@ -479,21 +622,35 @@ export default function App() {
     setMissions((current) => [mission, ...current]);
     setSelectedId(mission.id);
     setCommand('');
-    setActiveView('missions');
+    setActiveView('progress');
+  }
+
+  function advanceMission(missionId) {
+    setMissions((current) => current.map((mission) => mission.id === missionId ? nextMissionState(mission) : mission));
+    setActiveView('progress');
   }
 
   function approve(missionId, approvalId) {
     setMissions((current) => current.map((mission) => {
       if (mission.id !== missionId) return mission;
+      const steps = mission.steps.map((step) => step.status === 'needs_approval' ? { ...step, status: 'completed', evidence: 'تمت الموافقة من المستخدم.' } : step);
+      const nextIndex = steps.findIndex((step) => step.status === 'pending');
+      if (nextIndex !== -1) steps[nextIndex] = { ...steps[nextIndex], status: 'running' };
+
       return {
         ...mission,
         blocker: 'لا يوجد عائق حاليًا',
-        nextAction: 'تشغيل الخطوة التالية في خطة التنفيذ',
+        nextAction: nextIndex !== -1 ? steps[nextIndex].title : 'مراجعة النتائج والمخرجات',
         approvals: mission.approvals.map((approval) => approval.id === approvalId ? { ...approval, status: 'approved' } : approval),
-        steps: mission.steps.map((step) => step.status === 'needs_approval' ? { ...step, status: 'completed', evidence: 'تمت الموافقة من المستخدم.' } : step),
+        steps,
+        outputs: [
+          ...(mission.outputs || []),
+          { id: uid('output'), type: 'موافقة', title: 'تم اعتماد خطوة حساسة', status: 'معتمد', detail: 'تمت الموافقة من المستخدم ويمكن متابعة التنفيذ.' }
+        ],
         logs: [...mission.logs, 'الآن - تم اعتماد خطوة حساسة من المستخدم.']
       };
     }));
+    setActiveView('progress');
   }
 
   return (
@@ -514,10 +671,20 @@ export default function App() {
               setActiveView={setActiveView}
             />
           )}
+          {activeView === 'progress' && (
+            <ProgressView
+              missions={missions}
+              selectedId={selectedId}
+              setSelectedId={setSelectedId}
+              selectedMission={selectedMission}
+              setActiveView={setActiveView}
+              onAdvance={advanceMission}
+              onApprove={approve}
+            />
+          )}
           {activeView === 'missions' && (
             <MissionsView missions={missions} selectedId={selectedId} setSelectedId={setSelectedId} />
           )}
-          {activeView === 'agent' && <BrowserAgentView missions={missions} />}
           {activeView === 'approvals' && <ApprovalsView missions={missions} onApprove={approve} />}
           {activeView === 'system' && <SystemView />}
         </div>
