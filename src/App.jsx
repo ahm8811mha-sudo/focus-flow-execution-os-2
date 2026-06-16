@@ -39,7 +39,7 @@ function buildMission(command) {
     createdAt: 'الآن',
     source: 'local-fallback',
     outputs: [
-      { id: uid('output'), type: 'خطة', title: 'ملف التنفيذ الرئيسي', status: 'جاهز', detail: 'تم تحويل طلبك إلى Mission وخطوات متابعة.' },
+      { id: uid('output'), type: 'خطة', title: 'ملف التنفيذ الرئيسي', status: 'جاهز', detail: 'تم تحويل طلبك إلى Mission وخطوات متابعة. افتح لوحة تقدم، وستجد هنا كل مستند أو نتيجة جاهزة للنسخ أو التحميل.' },
       { id: uid('output'), type: 'قائمة', title: 'البيانات المطلوبة منك', status: 'جاهز', detail: 'سيتم تحديثها كلما اكتشف الوكيل نقصًا أو قرارًا مطلوبًا.' },
       { id: uid('output'), type: 'سجل', title: 'سجل التنفيذ', status: 'نشط', detail: 'أي تطور يظهر مباشرة في سجل هذه المهمة.' }
     ],
@@ -127,7 +127,6 @@ function TopBar({ activeView, setActiveView }) {
     ['approvals', 'Approvals'],
     ['system', 'System']
   ];
-
   return (
     <header className="topbar">
       <button className="brand" onClick={() => setActiveView('progress')}>
@@ -135,9 +134,7 @@ function TopBar({ activeView, setActiveView }) {
         <span><strong>Focus Flow</strong><small>Execution OS</small></span>
       </button>
       <nav className="desktop-nav">
-        {items.map(([id, label]) => (
-          <button key={id} className={activeView === id ? 'active' : ''} onClick={() => setActiveView(id)}>{label}</button>
-        ))}
+        {items.map(([id, label]) => <button key={id} className={activeView === id ? 'active' : ''} onClick={() => setActiveView(id)}>{label}</button>)}
       </nav>
     </header>
   );
@@ -151,7 +148,6 @@ function MobileNav({ activeView, setActiveView }) {
     ['approvals', '✓', 'اعتماد'],
     ['system', '⚙', 'نظام']
   ];
-
   return (
     <nav className="mobile-nav">
       {items.map(([id, icon, label]) => (
@@ -169,35 +165,15 @@ function CommandCenter({ command, setCommand, onCreate, missions, selectedMissio
       <section className="hero-card glass-card">
         <div className="hero-meta"><span className="live-dot" /> AI Execution Command Center</div>
         <h1>اطلب الهدف، والنظام يدير التنفيذ.</h1>
-        <p>
-          اكتب طلبك هنا. بعد الإنشاء ستجده مباشرة في تبويب <strong>تقدم</strong>. الآن تم ربط الإدخال بطبقة Vercel API لتوليد الخطة وتشغيل الخطوات، ومع وجود مفتاح Gemini سيولد الخطة بالذكاء الاصطناعي.
-        </p>
+        <p>بعد إنشاء أي طلب، افتح تبويب <strong>تقدم</strong>. هناك تجد المستندات في قسم <strong>المخرجات الجاهزة</strong>، وتستعجل أي خطوة من قسم <strong>كل خطوات التنفيذ</strong>.</p>
         <div className="command-box">
-          <textarea
-            value={command}
-            onChange={(event) => setCommand(event.target.value)}
-            placeholder="مثال: أبغى أنشئ شركة وأحتاج النظام يحلل المتطلبات، يجهز الخطوات، يجدول الإجراءات، ويتابع معي حتى الانتهاء."
-          />
-          <button className="primary-action" onClick={onCreate} disabled={isPlanning}>
-            {isPlanning ? 'جاري ربط الطلب وإنشاء Mission...' : 'حوّل الطلب إلى Mission'}
-          </button>
+          <textarea value={command} onChange={(event) => setCommand(event.target.value)} placeholder="مثال: أبغى أنشئ شركة وأحتاج النظام يحلل المتطلبات، يجهز الخطوات، يجدول الإجراءات، ويتابع معي حتى الانتهاء." />
+          <button className="primary-action" onClick={onCreate} disabled={isPlanning}>{isPlanning ? 'جاري إنشاء Mission...' : 'حوّل الطلب إلى Mission'}</button>
         </div>
       </section>
-
       <section className="grid two-columns">
-        <div className="glass-card next-card">
-          <span className="section-eyebrow">أين أجد تطور طلبي؟</span>
-          <h2>افتح تبويب تقدم</h2>
-          <p>هذا هو المكان المركزي لمتابعة كل طلب أنشأته. ستجد النسبة، الخطوة الحالية، المخرجات، الاعتمادات، والسجل.</p>
-          <button className="secondary-action" onClick={() => setActiveView('progress')}>فتح لوحة التقدم</button>
-        </div>
-
-        <div className="glass-card metrics-card">
-          <span className="section-eyebrow">النظام الآن</span>
-          <div className="metric-row"><strong>{missions.length}</strong><span>Missions نشطة</span></div>
-          <div className="metric-row"><strong>{missions.reduce((sum, mission) => sum + openApprovalsCount(mission), 0)}</strong><span>موافقات تنتظرك</span></div>
-          <div className="metric-row"><strong>{selectedMission ? `${progressOf(selectedMission)}%` : '0%'}</strong><span>تقدم آخر طلب</span></div>
-        </div>
+        <div className="glass-card next-card"><span className="section-eyebrow">أين المستندات؟</span><h2>تقدم ← المخرجات الجاهزة</h2><p>كل ملف أو نتيجة يجهزها النظام ستجدها هناك مع أزرار نسخ وتحميل.</p><button className="secondary-action" onClick={() => setActiveView('progress')}>فتح لوحة التقدم</button></div>
+        <div className="glass-card metrics-card"><span className="section-eyebrow">النظام الآن</span><div className="metric-row"><strong>{missions.length}</strong><span>Missions نشطة</span></div><div className="metric-row"><strong>{missions.reduce((sum, mission) => sum + openApprovalsCount(mission), 0)}</strong><span>موافقات تنتظرك</span></div><div className="metric-row"><strong>{selectedMission ? `${progressOf(selectedMission)}%` : '0%'}</strong><span>تقدم آخر طلب</span></div></div>
       </section>
     </main>
   );
@@ -208,12 +184,31 @@ function MissionCard({ mission, onSelect, compact = false }) {
   return (
     <button className={`mission-card ${compact ? 'compact' : ''}`} onClick={() => onSelect?.(mission.id)}>
       <div className="mission-card-top"><StatusPill status={mission.status} /><span className="priority">{mission.priority}</span></div>
-      <h3>{mission.title}</h3>
-      <p>{mission.command}</p>
+      <h3>{mission.title}</h3><p>{mission.command}</p>
       <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>
       <div className="mission-card-bottom"><span>{progress}% مكتمل</span><span>{mission.due}</span></div>
     </button>
   );
+}
+
+function buildOutputText(mission, output) {
+  return `Focus Flow Execution OS\n\nالمهمة: ${mission.title}\nالأمر: ${mission.command}\n\nنوع المخرج: ${output.type}\nالعنوان: ${output.title}\nالحالة: ${output.status}\n\nالتفاصيل:\n${output.detail}\n\nتم إنشاؤه داخل لوحة تقدم.`;
+}
+
+function downloadOutput(mission, output) {
+  const blob = new Blob([buildOutputText(mission, output)], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${output.title.replace(/[\\/:*?"<>|]/g, '-')}.txt`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function copyOutput(mission, output) {
+  await navigator.clipboard.writeText(buildOutputText(mission, output));
 }
 
 function ProgressView({ missions, setSelectedId, selectedMission, setActiveView, onAdvance, onApprove, isAdvancing }) {
@@ -224,9 +219,7 @@ function ProgressView({ missions, setSelectedId, selectedMission, setActiveView,
   const completedSteps = mission?.steps?.filter((step) => step.status === 'completed').length || 0;
 
   if (!mission) {
-    return (
-      <main className="view"><section className="hero-card glass-card"><span className="section-eyebrow">Progress Center</span><h1>لا يوجد طلب بعد.</h1><p>ابدأ من تبويب أمر واكتب هدفك.</p><button className="primary-action" onClick={() => setActiveView('command')}>إنشاء طلب جديد</button></section></main>
-    );
+    return <main className="view"><section className="hero-card glass-card"><span className="section-eyebrow">Progress Center</span><h1>لا يوجد طلب بعد.</h1><p>ابدأ من تبويب أمر واكتب هدفك.</p><button className="primary-action" onClick={() => setActiveView('command')}>إنشاء طلب جديد</button></section></main>;
   }
 
   return (
@@ -234,73 +227,66 @@ function ProgressView({ missions, setSelectedId, selectedMission, setActiveView,
       <section className="hero-card glass-card">
         <div className="hero-meta"><span className="live-dot" /> مركز متابعة الطلبات</div>
         <h1>هنا تشوف كل تطور لطلبك.</h1>
-        <p>هذه الصفحة هي مكان المتابعة الرئيسي. تم ربط زر تشغيل الخطوة التالية بطبقة Vercel API حتى تكون كل حركة مسجلة ومحدثة في Mission.</p>
+        <p>لا تنتظر الجدولة. من قسم <strong>كل خطوات التنفيذ</strong> اضغط <strong>نفذ الآن</strong> لأي خطوة تريد استعجالها. المستندات تجدها في <strong>المخرجات الجاهزة</strong>.</p>
         <div className="command-box">
-          <select
-            value={mission.id}
-            onChange={(event) => setSelectedId(event.target.value)}
-            style={{ minHeight: 54, borderRadius: 18, padding: '0 16px', color: 'white', background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.12)' }}
-          >
+          <select value={mission.id} onChange={(event) => setSelectedId(event.target.value)} style={{ minHeight: 54, borderRadius: 18, padding: '0 16px', color: 'white', background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.12)' }}>
             {missions.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
           </select>
-          <button className="primary-action" onClick={() => onAdvance(mission.id)} disabled={isAdvancing}>
-            {isAdvancing ? 'جاري تشغيل الخطوة...' : 'شغّل الخطوة التالية'}
-          </button>
+          <button className="primary-action" onClick={() => onAdvance(mission.id)} disabled={isAdvancing}>{isAdvancing ? 'جاري تشغيل الخطوة...' : 'شغّل الخطوة التالية'}</button>
         </div>
       </section>
 
       <section className="grid two-columns">
-        <div className="glass-card next-card">
-          <span className="section-eyebrow">الطلب الحالي</span>
-          <h2>{mission.title}</h2>
-          <p>{mission.command}</p>
-          <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>
-          <div className="mission-card-bottom"><span>{progress}% مكتمل</span><span>{completedSteps} من {mission.steps.length} خطوات</span></div>
-        </div>
-
-        <div className="glass-card next-card">
-          <span className="section-eyebrow">الخطوة الحالية</span>
-          <h2>{currentStep?.title || 'لا توجد خطوة حالية'}</h2>
-          <p>{currentStep?.evidence || mission.blocker}</p>
-          <div style={{ marginTop: 18, display: 'flex', gap: 10, flexWrap: 'wrap' }}>{currentStep && <StatusPill status={currentStep.status} />}{currentStep && <TypeBadge type={currentStep.type} />}</div>
-        </div>
+        <div className="glass-card next-card"><span className="section-eyebrow">الطلب الحالي</span><h2>{mission.title}</h2><p>{mission.command}</p><div className="progress-track"><span style={{ width: `${progress}%` }} /></div><div className="mission-card-bottom"><span>{progress}% مكتمل</span><span>{completedSteps} من {mission.steps.length} خطوات</span></div></div>
+        <div className="glass-card next-card"><span className="section-eyebrow">الخطوة الحالية</span><h2>{currentStep?.title || 'لا توجد خطوة حالية'}</h2><p>{currentStep?.evidence || mission.blocker}</p><div style={{ marginTop: 18, display: 'flex', gap: 10, flexWrap: 'wrap' }}>{currentStep && <StatusPill status={currentStep.status} />}{currentStep && <TypeBadge type={currentStep.type} />}</div></div>
       </section>
 
-      <section className="grid two-columns">
-        <div className="glass-card next-card">
-          <span className="section-eyebrow">المخرجات الجاهزة</span>
-          <h2>كل شيء يجهزه النظام يظهر هنا</h2>
-          <div className="steps-list">
-            {mission.outputs?.map((output) => (
-              <article key={output.id} className="step-card completed">
-                <div className="step-index">✦</div>
-                <div className="step-content"><div className="step-topline"><TypeBadge type="document" /><span className="priority">{output.status}</span></div><h4>{output.title}</h4><p>{output.detail}</p><small>{output.type}</small></div>
-              </article>
-            ))}
-          </div>
-        </div>
-
-        <div className="glass-card next-card">
-          <span className="section-eyebrow">الموافقات المطلوبة منك</span>
-          <h2>{approvals.length ? `${approvals.length} موافقة تنتظرك` : 'لا يوجد عائق حاليًا'}</h2>
-          <div className="steps-list">
-            {approvals.length ? approvals.map((approval) => (
-              <article key={approval.id} className="step-card needs_approval">
-                <div className="step-index">✓</div>
-                <div className="step-content"><div className="step-topline"><span className="risk-badge">{approval.risk}</span><StatusPill status="needs_approval" /></div><h4>{approval.title}</h4><p>{approval.detail}</p><button className="primary-action small" style={{ marginTop: 14 }} onClick={() => onApprove(mission.id, approval.id)}>اعتماد الآن</button></div>
-              </article>
-            )) : <article className="step-card completed"><div className="step-index">✓</div><div className="step-content"><h4>التنفيذ غير متوقف</h4><p>اضغط شغّل الخطوة التالية لمتابعة تقدم الطلب.</p></div></article>}
-          </div>
+      <section className="glass-card mission-detail">
+        <div className="section-header"><div><span className="section-eyebrow">Documents & Outputs</span><h2>المخرجات الجاهزة</h2><p style={{ color: 'rgba(235,242,255,.62)', marginTop: 8 }}>هنا تجد المستندات والنتائج. استخدم تحميل لحفظها كملف نصي، أو نسخ لوضعها في أي مكان.</p></div></div>
+        <div className="steps-list">
+          {mission.outputs?.map((output) => (
+            <article key={output.id} className="step-card completed">
+              <div className="step-index">✦</div>
+              <div className="step-content">
+                <div className="step-topline"><TypeBadge type="document" /><span className="priority">{output.status}</span></div>
+                <h4>{output.title}</h4><p>{output.detail}</p><small>{output.type}</small>
+                <div style={{ marginTop: 14, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <button className="secondary-action" onClick={() => downloadOutput(mission, output)}>تحميل</button>
+                  <button className="secondary-action" onClick={() => copyOutput(mission, output)}>نسخ</button>
+                </div>
+              </div>
+            </article>
+          ))}
         </div>
       </section>
 
       <section className="glass-card mission-detail">
-        <div className="section-header"><div><span className="section-eyebrow">Execution Log</span><h2>سجل التنفيذ لهذا الطلب</h2></div><button className="secondary-action" onClick={() => setActiveView('missions')}>فتح الخطة التفصيلية</button></div>
+        <div className="section-header"><div><span className="section-eyebrow">Run Now</span><h2>كل خطوات التنفيذ</h2><p style={{ color: 'rgba(235,242,255,.62)', marginTop: 8 }}>لا تحتاج تنتظر الوقت المكتوب تحت الخطوة. اضغط نفذ الآن على أي خطوة غير مكتملة. خطوات الموافقة لا يمكن تجاوزها؛ لازم تضغط اعتماد.</p></div></div>
         <div className="steps-list">
-          {mission.logs.slice().reverse().map((log, index) => (
-            <article key={`${log}-${index}`} className="step-card"><div className="step-index">{mission.logs.length - index}</div><div className="step-content"><h4>{log}</h4><p>{mission.title}</p></div></article>
+          {mission.steps.map((step, index) => (
+            <article key={step.id} className={`step-card ${step.status}`}>
+              <div className="step-index">{index + 1}</div>
+              <div className="step-content">
+                <div className="step-topline"><TypeBadge type={step.type} /><StatusPill status={step.status} /></div>
+                <h4>{step.title}</h4><p>{step.evidence}</p><small>{step.time}</small>
+                <div style={{ marginTop: 14 }}>
+                  {step.type === 'approval' || step.status === 'needs_approval' ? (
+                    <button className="primary-action small" onClick={() => setActiveView('approvals')}>اذهب للاعتماد</button>
+                  ) : step.status === 'completed' ? (
+                    <button className="secondary-action" disabled>مكتملة</button>
+                  ) : (
+                    <button className="primary-action small" onClick={() => onAdvance(mission.id, step.id)} disabled={isAdvancing}>نفذ الآن</button>
+                  )}
+                </div>
+              </div>
+            </article>
           ))}
         </div>
+      </section>
+
+      <section className="grid two-columns">
+        <div className="glass-card next-card"><span className="section-eyebrow">الموافقات المطلوبة منك</span><h2>{approvals.length ? `${approvals.length} موافقة تنتظرك` : 'لا يوجد عائق حاليًا'}</h2><div className="steps-list">{approvals.length ? approvals.map((approval) => <article key={approval.id} className="step-card needs_approval"><div className="step-index">✓</div><div className="step-content"><div className="step-topline"><span className="risk-badge">{approval.risk}</span><StatusPill status="needs_approval" /></div><h4>{approval.title}</h4><p>{approval.detail}</p><button className="primary-action small" style={{ marginTop: 14 }} onClick={() => onApprove(mission.id, approval.id)}>اعتماد الآن</button></div></article>) : <article className="step-card completed"><div className="step-index">✓</div><div className="step-content"><h4>التنفيذ غير متوقف</h4><p>اضغط شغّل الخطوة التالية أو نفذ الآن لأي خطوة.</p></div></article>}</div></div>
+        <div className="glass-card mission-detail"><div className="section-header"><div><span className="section-eyebrow">Execution Log</span><h2>سجل التنفيذ</h2></div></div><div className="steps-list">{mission.logs.slice().reverse().map((log, index) => <article key={`${log}-${index}`} className="step-card"><div className="step-index">{mission.logs.length - index}</div><div className="step-content"><h4>{log}</h4><p>{mission.title}</p></div></article>)}</div></div>
       </section>
     </main>
   );
@@ -308,55 +294,34 @@ function ProgressView({ missions, setSelectedId, selectedMission, setActiveView,
 
 function MissionsView({ missions, selectedId, setSelectedId }) {
   const selectedMission = missions.find((mission) => mission.id === selectedId) || missions[0];
-  return (
-    <main className="view missions-view">
-      <section className="section-header page-header"><div><span className="section-eyebrow">Mission Control</span><h1>Missions وليست مشاريع عادية</h1><p>هنا تجد الخطة التفصيلية الكاملة لكل هدف. لمتابعة التطور اليومي افتح تبويب تقدم.</p></div></section>
-      <div className="missions-layout"><aside className="mission-list glass-card">{missions.map((mission) => <MissionCard key={mission.id} mission={mission} onSelect={setSelectedId} />)}</aside>{selectedMission && <MissionDetail mission={selectedMission} />}</div>
-    </main>
-  );
+  return <main className="view missions-view"><section className="section-header page-header"><div><span className="section-eyebrow">Mission Control</span><h1>Missions وليست مشاريع عادية</h1><p>هنا تجد الخطة التفصيلية. لمتابعة التطور، المستندات، وتنفيذ الخطوات فورًا افتح تبويب تقدم.</p></div></section><div className="missions-layout"><aside className="mission-list glass-card">{missions.map((mission) => <MissionCard key={mission.id} mission={mission} onSelect={setSelectedId} />)}</aside>{selectedMission && <MissionDetail mission={selectedMission} />}</div></main>;
 }
 
 function MissionDetail({ mission }) {
   const progress = progressOf(mission);
-  return (
-    <section className="mission-detail glass-card">
-      <div className="mission-hero"><div><span className="section-eyebrow">Active Mission</span><h2>{mission.title}</h2><p>{mission.command}</p></div><div className="progress-orb"><strong>{progress}%</strong><span>progress</span></div></div>
-      <div className="mission-summary-grid"><div><small>الحالة</small><StatusPill status={mission.status} /></div><div><small>المسؤول</small><strong>{mission.owner}</strong></div><div><small>الإجراء التالي</small><strong>{mission.nextAction}</strong></div><div><small>العائق</small><strong>{mission.blocker}</strong></div></div>
-      <ExecutionPlan mission={mission} />
-    </section>
-  );
+  return <section className="mission-detail glass-card"><div className="mission-hero"><div><span className="section-eyebrow">Active Mission</span><h2>{mission.title}</h2><p>{mission.command}</p></div><div className="progress-orb"><strong>{progress}%</strong><span>progress</span></div></div><div className="mission-summary-grid"><div><small>الحالة</small><StatusPill status={mission.status} /></div><div><small>المسؤول</small><strong>{mission.owner}</strong></div><div><small>الإجراء التالي</small><strong>{mission.nextAction}</strong></div><div><small>العائق</small><strong>{mission.blocker}</strong></div></div><ExecutionPlan mission={mission} /></section>;
 }
 
 function ExecutionPlan({ mission }) {
-  return (
-    <div className="execution-plan"><div className="section-header slim"><div><span className="section-eyebrow">Execution Plan</span><h3>الخطة التنفيذية</h3></div></div><div className="steps-list">{mission.steps.map((step, index) => <article key={step.id} className={`step-card ${step.status}`}><div className="step-index">{index + 1}</div><div className="step-content"><div className="step-topline"><TypeBadge type={step.type} /><StatusPill status={step.status} /></div><h4>{step.title}</h4><p>{step.evidence}</p><small>{step.time}</small></div></article>)}</div></div>
-  );
+  return <div className="execution-plan"><div className="section-header slim"><div><span className="section-eyebrow">Execution Plan</span><h3>الخطة التنفيذية</h3></div></div><div className="steps-list">{mission.steps.map((step, index) => <article key={step.id} className={`step-card ${step.status}`}><div className="step-index">{index + 1}</div><div className="step-content"><div className="step-topline"><TypeBadge type={step.type} /><StatusPill status={step.status} /></div><h4>{step.title}</h4><p>{step.evidence}</p><small>{step.time}</small></div></article>)}</div></div>;
 }
 
 function ApprovalsView({ missions, onApprove }) {
   const approvals = missions.flatMap((mission) => mission.approvals.map((approval) => ({ ...approval, missionId: mission.id, missionTitle: mission.title })));
   const openApprovals = approvals.filter((approval) => approval.status === 'open');
-  return (
-    <main className="view approvals-view">
-      <section className="page-header section-header"><div><span className="section-eyebrow">Approval Queue</span><h1>النظام لا يزعجك إلا عند القرار.</h1><p>أي خطوة قانونية، مالية، تسجيل دخول، أو إرسال نهائي تظهر هنا قبل أن يكمل الوكيل التنفيذ.</p></div></section>
-      <section className="approval-list">{openApprovals.map((approval) => <article key={approval.id} className="approval-card glass-card"><div><span className="risk-badge">{approval.risk}</span><h2>{approval.title}</h2><p>{approval.detail}</p><small>{approval.missionTitle}</small></div><button className="primary-action small" onClick={() => onApprove(approval.missionId, approval.id)}>اعتماد</button></article>)}{!openApprovals.length && <article className="approval-card glass-card"><div><span className="risk-badge">واضح</span><h2>لا توجد موافقات مفتوحة</h2><p>ارجع إلى تبويب تقدم وشغّل الخطوة التالية.</p></div></article>}</section>
-    </main>
-  );
+  return <main className="view approvals-view"><section className="page-header section-header"><div><span className="section-eyebrow">Approval Queue</span><h1>النظام لا يزعجك إلا عند القرار.</h1><p>أي خطوة قانونية، مالية، تسجيل دخول، أو إرسال نهائي تظهر هنا قبل أن يكمل الوكيل التنفيذ.</p></div></section><section className="approval-list">{openApprovals.map((approval) => <article key={approval.id} className="approval-card glass-card"><div><span className="risk-badge">{approval.risk}</span><h2>{approval.title}</h2><p>{approval.detail}</p><small>{approval.missionTitle}</small></div><button className="primary-action small" onClick={() => onApprove(approval.missionId, approval.id)}>اعتماد</button></article>)}{!openApprovals.length && <article className="approval-card glass-card"><div><span className="risk-badge">واضح</span><h2>لا توجد موافقات مفتوحة</h2><p>ارجع إلى تبويب تقدم وشغّل الخطوة التالية.</p></div></article>}</section></main>;
 }
 
 function SystemView() {
   const integrations = [
     ['Vercel Mission API', 'إنشاء Missions من الطلبات عبر /api/mission-plan', 'Connected'],
-    ['Vercel Step Runner', 'تشغيل الخطوة التالية عبر /api/run-step', 'Connected'],
+    ['Vercel Step Runner', 'تشغيل أي خطوة الآن عبر /api/run-step', 'Connected'],
+    ['Documents', 'نسخ وتحميل المخرجات كملفات نصية من لوحة تقدم', 'Ready'],
     ['Gemini AI', 'يعمل عند إضافة GEMINI_API_KEY في Vercel', 'Ready'],
     ['Browser Worker', 'Playwright / cloud browser لاحقًا للتنفيذ الخارجي الحقيقي', 'Planned'],
-    ['Supabase', 'قاعدة بيانات ومزامنة بين الأجهزة', 'Planned'],
-    ['Evidence Vault', 'حفظ لقطات وإثباتات التنفيذ', 'Ready UI']
+    ['Supabase', 'قاعدة بيانات ومزامنة بين الأجهزة', 'Planned']
   ];
-
-  return (
-    <main className="view system-view"><section className="page-header section-header"><div><span className="section-eyebrow">System Architecture</span><h1>تم ربط الواجهة بطبقة تنفيذ.</h1><p>الآن الإنشاء والتقدم يمران عبر Vercel API. لإضافة ذكاء حقيقي ضع GEMINI_API_KEY في Environment Variables.</p></div></section><section className="system-grid">{integrations.map(([name, description, state]) => <article key={name} className="glass-card integration-card"><div className="integration-icon">✦</div><h2>{name}</h2><p>{description}</p><span>{state}</span></article>)}</section></main>
-  );
+  return <main className="view system-view"><section className="page-header section-header"><div><span className="section-eyebrow">System Architecture</span><h1>تم ربط الواجهة بطبقة تنفيذ.</h1><p>المستندات والتنفيذ الفوري داخل تبويب تقدم. لإضافة ذكاء حقيقي ضع GEMINI_API_KEY في Vercel.</p></div></section><section className="system-grid">{integrations.map(([name, description, state]) => <article key={name} className="glass-card integration-card"><div className="integration-icon">✦</div><h2>{name}</h2><p>{description}</p><span>{state}</span></article>)}</section></main>;
 }
 
 function ExecutionLog({ missions }) {
@@ -364,26 +329,23 @@ function ExecutionLog({ missions }) {
   return <aside className="execution-log glass-card"><span className="section-eyebrow">Execution Log</span><h3>سجل التنفيذ</h3><div>{logs.slice(-8).reverse().map((item, index) => <p key={`${item.mission}-${index}`}><strong>{item.mission}</strong><span>{item.log}</span></p>)}</div></aside>;
 }
 
-function nextMissionState(mission) {
+function nextMissionState(mission, stepId) {
   const steps = [...mission.steps];
-  const activeIndex = steps.findIndex((step) => step.status === 'running' || step.status === 'pending');
+  let activeIndex = stepId ? steps.findIndex((step) => step.id === stepId) : -1;
+  if (activeIndex === -1) activeIndex = steps.findIndex((step) => step.status === 'running' || step.status === 'pending');
   if (activeIndex === -1) return { ...mission, status: 'completed', blocker: 'اكتملت جميع الخطوات المتاحة داخل النسخة الحالية', nextAction: 'مراجعة النتائج والمخرجات', logs: [...mission.logs, 'الآن - لا توجد خطوات إضافية قابلة للتشغيل داخل الواجهة.'] };
-  const completedStep = steps[activeIndex];
-  steps[activeIndex] = { ...completedStep, status: 'completed', evidence: `${completedStep.evidence} تم تحديثها كمكتملة داخل لوحة التقدم.` };
+  const selectedStep = steps[activeIndex];
+  if (selectedStep.type === 'approval' || selectedStep.status === 'needs_approval') return { ...mission, blocker: 'هذه الخطوة تحتاج موافقتك من تبويب اعتماد', nextAction: selectedStep.title, logs: [...mission.logs, `الآن - لا يمكن تجاوز خطوة موافقة: ${selectedStep.title}.`] };
+  if (selectedStep.status === 'completed') return { ...mission, logs: [...mission.logs, `الآن - الخطوة مكتملة مسبقًا: ${selectedStep.title}.`] };
+  steps[activeIndex] = { ...selectedStep, status: 'completed', evidence: `${selectedStep.evidence} تم تنفيذها الآن داخل لوحة التقدم.` };
   const nextIndex = steps.findIndex((step, index) => index > activeIndex && step.status === 'pending');
   let nextAction = 'مراجعة النتائج والمخرجات';
   let blocker = 'لا يوجد عائق حاليًا';
   if (nextIndex !== -1) {
-    if (steps[nextIndex].type === 'approval') {
-      steps[nextIndex] = { ...steps[nextIndex], status: 'needs_approval' };
-      nextAction = steps[nextIndex].title;
-      blocker = 'ينتظر موافقتك قبل الاستمرار';
-    } else {
-      steps[nextIndex] = { ...steps[nextIndex], status: 'running' };
-      nextAction = steps[nextIndex].title;
-    }
+    if (steps[nextIndex].type === 'approval') { steps[nextIndex] = { ...steps[nextIndex], status: 'needs_approval' }; nextAction = steps[nextIndex].title; blocker = 'ينتظر موافقتك قبل الاستمرار'; }
+    else { steps[nextIndex] = { ...steps[nextIndex], status: 'running' }; nextAction = steps[nextIndex].title; }
   }
-  return { ...mission, steps, nextAction, blocker, outputs: [...(mission.outputs || []), { id: uid('output'), type: actionTypes[completedStep.type] || 'تحديث', title: `نتيجة: ${completedStep.title}`, status: 'تم التحديث', detail: completedStep.evidence }], logs: [...mission.logs, `الآن - تم تحديث خطوة: ${completedStep.title}.`] };
+  return { ...mission, status: nextIndex === -1 ? 'completed' : 'running', steps, nextAction, blocker, outputs: [...(mission.outputs || []), { id: uid('output'), type: actionTypes[selectedStep.type] || 'تحديث', title: `نتيجة: ${selectedStep.title}`, status: 'جاهز', detail: selectedStep.evidence }], logs: [...mission.logs, `الآن - تم تنفيذ خطوة الآن: ${selectedStep.title}.`] };
 }
 
 export default function App() {
@@ -392,19 +354,11 @@ export default function App() {
   const [isPlanning, setIsPlanning] = useState(false);
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [missions, setMissions] = useState(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      const parsed = stored ? JSON.parse(stored) : seedMissions;
-      return Array.isArray(parsed) ? parsed.map(normalizeMission) : seedMissions;
-    } catch {
-      return seedMissions;
-    }
+    try { const stored = localStorage.getItem(STORAGE_KEY); const parsed = stored ? JSON.parse(stored) : seedMissions; return Array.isArray(parsed) ? parsed.map(normalizeMission) : seedMissions; } catch { return seedMissions; }
   });
   const [selectedId, setSelectedId] = useState(() => seedMissions[0]?.id);
-
   useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(missions)); }, [missions]);
   useEffect(() => { if (!selectedId && missions[0]) setSelectedId(missions[0].id); }, [missions, selectedId]);
-
   const selectedMission = useMemo(() => missions.find((mission) => mission.id === selectedId) || missions[0], [missions, selectedId]);
 
   async function createMission() {
@@ -422,29 +376,24 @@ export default function App() {
       mission.logs = [...mission.logs, `الآن - تعذر الاتصال بـ Vercel API، تم استخدام التخطيط المحلي: ${error.message}`];
       setMissions((current) => [mission, ...current]);
       setSelectedId(mission.id);
-    } finally {
-      setCommand('');
-      setActiveView('progress');
-      setIsPlanning(false);
-    }
+    } finally { setCommand(''); setActiveView('progress'); setIsPlanning(false); }
   }
 
-  async function advanceMission(missionId) {
+  async function advanceMission(missionId, stepId) {
     if (isAdvancing) return;
     const mission = missions.find((item) => item.id === missionId);
     if (!mission) return;
     setIsAdvancing(true);
     try {
-      const response = await fetch('/api/run-step', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mission }) });
+      const response = await fetch('/api/run-step', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mission, stepId }) });
       const data = await response.json();
       if (!response.ok || !data.mission) throw new Error(data.error || 'Step API failed');
       setMissions((current) => current.map((item) => item.id === missionId ? normalizeMission(data.mission) : item));
     } catch (error) {
-      setMissions((current) => current.map((item) => item.id === missionId ? { ...nextMissionState(item), logs: [...nextMissionState(item).logs, `الآن - تعذر الاتصال بـ Vercel API، تم استخدام التشغيل المحلي: ${error.message}`] } : item));
-    } finally {
-      setActiveView('progress');
-      setIsAdvancing(false);
-    }
+      const fallbackMission = nextMissionState(mission, stepId);
+      fallbackMission.logs = [...fallbackMission.logs, `الآن - تعذر الاتصال بـ Vercel API، تم استخدام التشغيل المحلي: ${error.message}`];
+      setMissions((current) => current.map((item) => item.id === missionId ? fallbackMission : item));
+    } finally { setActiveView('progress'); setIsAdvancing(false); }
   }
 
   function approve(missionId, approvalId) {
@@ -458,22 +407,5 @@ export default function App() {
     setActiveView('progress');
   }
 
-  return (
-    <div className="app-shell">
-      <div className="ambient ambient-one" />
-      <div className="ambient ambient-two" />
-      <TopBar activeView={activeView} setActiveView={setActiveView} />
-      <div className="app-grid">
-        <div className="main-panel">
-          {activeView === 'command' && <CommandCenter command={command} setCommand={setCommand} onCreate={createMission} missions={missions} selectedMission={selectedMission} setActiveView={setActiveView} isPlanning={isPlanning} />}
-          {activeView === 'progress' && <ProgressView missions={missions} setSelectedId={setSelectedId} selectedMission={selectedMission} setActiveView={setActiveView} onAdvance={advanceMission} onApprove={approve} isAdvancing={isAdvancing} />}
-          {activeView === 'missions' && <MissionsView missions={missions} selectedId={selectedId} setSelectedId={setSelectedId} />}
-          {activeView === 'approvals' && <ApprovalsView missions={missions} onApprove={approve} />}
-          {activeView === 'system' && <SystemView />}
-        </div>
-        <ExecutionLog missions={missions} />
-      </div>
-      <MobileNav activeView={activeView} setActiveView={setActiveView} />
-    </div>
-  );
+  return <div className="app-shell"><div className="ambient ambient-one" /><div className="ambient ambient-two" /><TopBar activeView={activeView} setActiveView={setActiveView} /><div className="app-grid"><div className="main-panel">{activeView === 'command' && <CommandCenter command={command} setCommand={setCommand} onCreate={createMission} missions={missions} selectedMission={selectedMission} setActiveView={setActiveView} isPlanning={isPlanning} />}{activeView === 'progress' && <ProgressView missions={missions} setSelectedId={setSelectedId} selectedMission={selectedMission} setActiveView={setActiveView} onAdvance={advanceMission} onApprove={approve} isAdvancing={isAdvancing} />}{activeView === 'missions' && <MissionsView missions={missions} selectedId={selectedId} setSelectedId={setSelectedId} />}{activeView === 'approvals' && <ApprovalsView missions={missions} onApprove={approve} />}{activeView === 'system' && <SystemView />}</div><ExecutionLog missions={missions} /></div><MobileNav activeView={activeView} setActiveView={setActiveView} /></div>;
 }
