@@ -1,274 +1,150 @@
 import { useEffect, useMemo, useState } from 'react';
 
-const STORAGE_KEY = 'focus-flow-execution-os-v4';
-const statusLabels = {
-  pending: 'بانتظار البدء',
-  running: 'قيد التنفيذ',
-  needs_approval: 'يحتاج موافقة',
-  completed: 'مكتمل',
-  canceled: 'ملغاة',
-  blocked: 'متوقف',
-  approved: 'معتمد',
-  rejected: 'مرفوض',
-  changes_requested: 'تعديل مطلوب',
-  delegated: 'محول'
-};
-const typeLabels = { internal: 'تنفيذ داخلي', browser: 'متصفح آلي', approval: 'موافقة', document: 'مستند', calendar: 'جدولة' };
-const uid = (prefix = 'id') => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-const timeNow = () => new Date().toLocaleString('ar-SA', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-const fieldStyle = { minHeight: 48, borderRadius: 16, padding: '0 14px', color: 'white', background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.12)', width: '100%' };
+const KEY = 'focus-flow-real-docs-v1';
+const uid = (p = 'id') => `${p}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+const now = () => new Date().toLocaleString('ar-SA', { dateStyle: 'short', timeStyle: 'short' });
+const statusText = { pending: 'بانتظار', running: 'قيد التنفيذ', completed: 'مكتمل', approval: 'موافقة', ready: 'جاهز', canceled: 'ملغاة' };
+const docType = { plan: 'خطة تنفيذ', requirements: 'متطلبات', approvals: 'موافقات', report: 'تقرير', step: 'نتيجة خطوة' };
+const safeName = (value) => String(value || 'document').replace(/[^\u0600-\u06FFa-zA-Z0-9]+/g, '-').slice(0, 70);
 
-function audit(action, target, details, actor = 'Ahmad') {
-  return { id: uid('audit'), time: timeNow(), actor, action, target, details };
+function Badge({ value }) {
+  return <span className={`status-pill ${value}`}>{statusText[value] || value}</span>;
 }
-function notification(title, detail, type = 'info') {
-  return { id: uid('notice'), title, detail, type, status: 'unread', createdAt: timeNow() };
+function TypeBadge({ value }) {
+  return <span className="type-badge document">{docType[value] || value}</span>;
 }
-function StatusPill({ status }) {
-  return <span className={`status-pill ${status}`}>{statusLabels[status] || status}</span>;
+function Card({ children, className = '' }) {
+  return <section className={`glass-card ${className}`}>{children}</section>;
 }
-function TypeBadge({ type }) {
-  return <span className={`type-badge ${type}`}>{typeLabels[type] || type}</span>;
+function event(action, title, detail) {
+  return { id: uid('event'), action, title, detail, at: now() };
 }
-function Button({ children, onClick, variant = 'primary', disabled = false, style }) {
-  return <button className={variant === 'primary' ? 'primary-action small' : 'secondary-action'} onClick={onClick} disabled={disabled} style={style}>{children}</button>;
-}
-
-function buildMission(command) {
-  const clean = String(command || '').trim();
-  const title = clean.length > 42 ? `${clean.slice(0, 42).trim()}...` : (clean || 'هدف تنفيذي جديد');
-  const steps = [
-    ['فهم الهدف وتحويله إلى Mission', 'internal', 'completed', 'تم تحليل الطلب واستخراج النتيجة المطلوبة.'],
-    ['بناء خطة تنفيذ متعددة المراحل', 'internal', 'completed', 'تم إنشاء خطة أولية قابلة للتعديل.'],
-    ['جمع المتطلبات والبيانات الناقصة', 'browser', 'running', 'الوكيل جاهز للبحث والتحقق.'],
-    ['تجهيز المستندات أو الرسائل المطلوبة', 'document', 'pending', 'سيتم إنشاء مسودات قابلة للمراجعة.'],
-    ['طلب موافقتك عند نقطة قانونية أو مالية', 'approval', 'needs_approval', 'لا يتم تجاوز هذه الخطوة بدون موافقتك.'],
-    ['متابعة التنفيذ حتى الإغلاق', 'calendar', 'pending', 'سيتم إنشاء تذكيرات وسجل متابعة.']
-  ].map(([stepTitle, type, status, evidence]) => ({ id: uid('step'), title: stepTitle, type, status, time: 'اليوم', evidence }));
-
-  return {
-    id: uid('mission'), title, command: clean, status: 'running', priority: 'عالية', due: 'مفتوح',
-    nextAction: 'جمع المتطلبات والبيانات الناقصة', blocker: 'لا يوجد عائق حاليًا', createdAt: timeNow(),
-    agent: { live: false, status: 'متوقف', cycles: 0, lastBeat: timeNow() },
-    steps,
-    approvals: [{ id: uid('approval'), title: 'اعتماد بدء التنفيذ', detail: 'راجع الخطة واسمح للنظام بمتابعة الخطوات الحساسة.', status: 'open', risk: 'تشغيل', createdAt: timeNow(), decisionNote: '' }],
-    outputs: [{ id: uid('output'), type: 'خطة', title: 'ملف التنفيذ الرئيسي', status: 'جاهز', detail: 'هذا هو مستند الخطة الأولية. استخدم تحميل أو نسخ من لوحة تقدم.' }],
-    notifications: [notification('Mission جاهزة', `تم إنشاء ${title}.`, 'success')],
-    audit: [audit('CREATE_MISSION', title, 'تم إنشاء Mission وخطة أولية')],
-    logs: [`${timeNow()} - تم إنشاء Mission.`]
-  };
-}
-
-const sampleMission = (() => {
-  const m = buildMission('تحويل المؤسسة إلى شركة في السعودية');
-  m.id = 'mission-company-conversion';
-  m.title = 'تحويل المؤسسة إلى شركة';
-  m.due = 'خلال 14 يوم';
-  return m;
-})();
-
-function normalizeMission(mission) {
-  const fallback = buildMission(mission?.command || mission?.title || 'هدف تنفيذي جديد');
-  return {
-    ...fallback,
-    ...mission,
-    id: mission?.id || fallback.id,
-    agent: { ...fallback.agent, ...(mission?.agent || {}) },
-    steps: Array.isArray(mission?.steps) ? mission.steps : fallback.steps,
-    approvals: Array.isArray(mission?.approvals) ? mission.approvals : fallback.approvals,
-    outputs: Array.isArray(mission?.outputs) ? mission.outputs : fallback.outputs,
-    notifications: Array.isArray(mission?.notifications) ? mission.notifications : fallback.notifications,
-    audit: Array.isArray(mission?.audit) ? mission.audit : fallback.audit,
-    logs: Array.isArray(mission?.logs) ? mission.logs : fallback.logs
-  };
-}
-function missionProgress(mission) {
-  const active = (mission.steps || []).filter((step) => step.status !== 'canceled');
+function progress(mission) {
+  const active = mission.steps.filter((s) => s.status !== 'canceled');
   if (!active.length) return 0;
-  return Math.round((active.filter((step) => step.status === 'completed').length / active.length) * 100);
+  return Math.round((active.filter((s) => s.status === 'completed').length / active.length) * 100);
 }
-function smartProgress(mission) {
-  const percent = missionProgress(mission);
-  const approvals = mission.approvals.filter((item) => item.status === 'open').length;
-  const running = mission.steps.find((step) => step.status === 'running');
-  if (approvals) return { percent, label: 'متوقف على موافقة', detail: `${approvals} موافقة تنتظرك`, color: '#f59e0b' };
-  if (percent >= 85) return { percent, label: 'قريب من الإغلاق', detail: 'راجع المخرجات وسجل التدقيق', color: '#20f2aa' };
-  return { percent, label: 'قيد التنفيذ', detail: running ? running.title : 'شغّل الخطوة التالية', color: '#22d3ee' };
+function makeDoc(mission, type, title, body) {
+  return {
+    id: uid('doc'),
+    type,
+    title,
+    fileName: `${safeName(mission.title)}-${type}.md`,
+    status: 'ready',
+    createdAt: now(),
+    body
+  };
 }
-function currentStep(mission) {
-  return mission.steps.find((step) => step.status === 'running') || mission.steps.find((step) => step.status === 'needs_approval') || mission.steps.find((step) => step.status === 'pending') || mission.steps[mission.steps.length - 1];
+function buildDocuments(mission) {
+  const stepsText = mission.steps.map((s, index) => `${index + 1}. ${s.title}\n   الحالة: ${statusText[s.status] || s.status}\n   النتيجة: ${s.result || s.note || 'بانتظار التنفيذ'}`).join('\n\n');
+  return [
+    makeDoc(mission, 'plan', 'خطة التنفيذ متعددة المراحل', `# خطة التنفيذ متعددة المراحل\n\nالمهمة: ${mission.title}\nالأمر: ${mission.command}\nتاريخ الإنشاء: ${mission.createdAt}\n\n## الهدف\nترتيب الطلب في ملف تنفيذ واضح بدلاً من بطاقات عشوائية.\n\n## المراحل\n${stepsText}\n\n## قاعدة التنفيذ\nلا يتم تجاوز أي موافقة أو إجراء حساس إلا بعد قرار المستخدم.`),
+    makeDoc(mission, 'requirements', 'قائمة المتطلبات والبيانات الناقصة', `# قائمة المتطلبات والبيانات الناقصة\n\nالمهمة: ${mission.title}\n\n## بيانات مطلوبة\n- رقم السجل التجاري الحالي.\n- نوع الشركة المطلوبة.\n- بيانات المالك أو الشركاء.\n- النشاط التجاري.\n- العنوان الوطني.\n- بيانات التواصل.\n\n## أسئلة يجب تأكيدها\n1. هل الشركة شخص واحد أم ذات مسؤولية محدودة؟\n2. هل يوجد شركاء؟\n3. هل سيتم تغيير الاسم أو النشاط؟\n4. هل توجد عقود أو عمالة يجب نقلها؟`),
+    makeDoc(mission, 'approvals', 'مصفوفة الموافقات', `# مصفوفة الموافقات\n\n${mission.approvals.map((a) => `- ${a.title}: ${a.state} — ${a.detail}`).join('\n')}\n\nلا يتم تجاوز أي بند موافقة بدون قرار صريح.`),
+    makeDoc(mission, 'report', 'تقرير التنفيذ الحالي', `# تقرير التنفيذ الحالي\n\nالمهمة: ${mission.title}\nالنسبة: ${progress(mission)}%\nآخر تحديث: ${now()}\n\n## آخر الأحداث\n${mission.events.slice(-12).map((e) => `- ${e.at}: ${e.action} — ${e.title} — ${e.detail}`).join('\n')}`)
+  ];
 }
-function outputText(mission, output) {
-  return `Focus Flow Execution OS\n\nالمهمة: ${mission.title}\nالأمر: ${mission.command}\n\n${output.title}\n${output.type} - ${output.status}\n\n${output.detail}`;
+function createMission(command) {
+  const title = command.length > 46 ? `${command.slice(0, 46)}...` : command;
+  const mission = {
+    id: uid('mission'),
+    title: title || 'مهمة جديدة',
+    command,
+    createdAt: now(),
+    status: 'running',
+    events: [event('CREATE', 'إنشاء ملف تنفيذ', 'تم إنشاء المهمة والخطة والمستندات')],
+    approvals: [{ id: uid('approval'), title: 'اعتماد بدء التنفيذ', detail: 'الموافقة قبل أي خطوة حساسة', state: 'مفتوحة' }],
+    steps: [
+      { id: uid('step'), title: 'تحليل الهدف', status: 'completed', note: 'تم فهم الطلب وتحويله إلى ملف تنفيذ.' },
+      { id: uid('step'), title: 'بناء الخطة متعددة المراحل', status: 'completed', note: 'تم إنشاء خطة فعلية قابلة للفتح.' },
+      { id: uid('step'), title: 'جمع المتطلبات والبيانات الناقصة', status: 'running', note: 'ينتج مستند متطلبات فعلي.' },
+      { id: uid('step'), title: 'تجهيز المستندات والمسودات', status: 'pending', note: 'ينتج مسودات قابلة للتحميل.' },
+      { id: uid('step'), title: 'مراجعة الموافقات', status: 'approval', note: 'تتوقف عند قرار المستخدم.' },
+      { id: uid('step'), title: 'تقرير الإغلاق والمتابعة', status: 'pending', note: 'ينتج تقرير نهائي.' }
+    ],
+    docs: []
+  };
+  mission.docs = buildDocuments(mission);
+  return mission;
 }
-function downloadOutput(mission, output) {
-  const blob = new Blob([outputText(mission, output)], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `${output.title.replace(/[\\/:*?"<>|]/g, '-')}.txt`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+function normalizeMission(mission) {
+  if (!mission?.docs?.length) return { ...mission, docs: buildDocuments(mission) };
+  return mission;
 }
-async function copyOutput(mission, output) {
-  await navigator.clipboard.writeText(outputText(mission, output));
+function downloadHref(doc) {
+  return `data:text/markdown;charset=utf-8,${encodeURIComponent(doc.body)}`;
+}
+async function copyText(text) {
+  await navigator.clipboard.writeText(text);
 }
 
-function TopBar({ view, setView }) {
-  const items = [['command', 'أمر'], ['progress', 'تقدم'], ['agent', 'Agent Live'], ['approvals', 'موافقات'], ['audit', 'تدقيق'], ['system', 'نظام']];
-  return <header className="topbar"><button className="brand" onClick={() => setView('progress')}><span className="brand-orb" /><span><strong>Focus Flow</strong><small>Execution OS</small></span></button><nav className="desktop-nav">{items.map(([key, label]) => <button key={key} className={view === key ? 'active' : ''} onClick={() => setView(key)}>{label}</button>)}</nav></header>;
+function Top({ view, setView }) {
+  const items = [['command', 'أمر'], ['workspace', 'ملف التنفيذ'], ['docs', 'المستندات'], ['plan', 'الخطة'], ['audit', 'تدقيق']];
+  return <header className="topbar"><button className="brand" onClick={() => setView('workspace')}><span className="brand-orb" /><span><strong>Focus Flow</strong><small>Real Documents</small></span></button><nav className="desktop-nav">{items.map(([key, label]) => <button key={key} className={view === key ? 'active' : ''} onClick={() => setView(key)}>{label}</button>)}</nav></header>;
 }
-function MobileNav({ view, setView }) {
-  const items = [['command', '⌘', 'أمر'], ['progress', '◉', 'تقدم'], ['agent', '◈', 'وكيل'], ['approvals', '✓', 'اعتماد'], ['audit', '≋', 'تدقيق']];
+function Bottom({ view, setView }) {
+  const items = [['command', '⌘', 'أمر'], ['workspace', '◎', 'ملف'], ['docs', '◫', 'مستندات'], ['plan', '◇', 'خطة'], ['audit', '≋', 'تدقيق']];
   return <nav className="mobile-nav">{items.map(([key, icon, label]) => <button key={key} className={view === key ? 'active' : ''} onClick={() => setView(key)}><span>{icon}</span><small>{label}</small></button>)}</nav>;
 }
 
-function CommandView({ command, setCommand, onCreate, busy, setView, missions, selectedMission }) {
-  const totalApprovals = missions.reduce((sum, mission) => sum + mission.approvals.filter((item) => item.status === 'open').length, 0);
-  return <main className="view"><section className="hero-card glass-card"><div className="hero-meta"><span className="live-dot" /> Command Center</div><h1>اطلب الهدف والنظام يدير التنفيذ.</h1><p>بعد إنشاء الطلب افتح تبويب تقدم. هناك المستندات، التشغيل الفوري، الإشعارات، الموافقات، وسجل التدقيق.</p><div className="command-box"><textarea value={command} onChange={(event) => setCommand(event.target.value)} placeholder="اكتب الهدف المطلوب تنفيذه..." /><button className="primary-action" onClick={onCreate} disabled={busy}>{busy ? 'جاري الإنشاء...' : 'حوّل الطلب إلى Mission'}</button></div></section><section className="grid two-columns"><div className="glass-card next-card"><span className="section-eyebrow">المستندات</span><h2>تقدم ← المخرجات الجاهزة</h2><p>كل مستند يظهر هناك مع أزرار نسخ وتحميل.</p><button className="secondary-action" onClick={() => setView('progress')}>فتح تقدم</button></div><div className="glass-card metrics-card"><span className="section-eyebrow">النظام الآن</span><div className="metric-row"><strong>{missions.length}</strong><span>Missions نشطة</span></div><div className="metric-row"><strong>{totalApprovals}</strong><span>موافقات مفتوحة</span></div><div className="metric-row"><strong>{selectedMission ? `${missionProgress(selectedMission)}%` : '0%'}</strong><span>تقدم آخر طلب</span></div></div></section></main>;
-}
-
-function TaskEditor({ editor, onSave, onClose }) {
-  const [draft, setDraft] = useState(editor?.step || { title: '', type: 'internal', status: 'pending', time: 'اليوم', evidence: '' });
-  if (!editor) return null;
-  return <div style={{ position: 'fixed', inset: 'auto 16px 96px 16px', zIndex: 50, maxWidth: 760, margin: '0 auto' }}><section className="glass-card mission-detail"><div className="section-header"><div><span className="section-eyebrow">Task Editor</span><h2>{editor.step ? 'تعديل مهمة' : 'إضافة مهمة'}</h2></div><button className="secondary-action" onClick={onClose}>إغلاق</button></div><div className="steps-list"><input style={fieldStyle} value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="عنوان المهمة" /><select style={fieldStyle} value={draft.type} onChange={(event) => setDraft({ ...draft, type: event.target.value })}>{Object.entries(typeLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><select style={fieldStyle} value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value })}><option value="pending">بانتظار البدء</option><option value="running">قيد التنفيذ</option><option value="needs_approval">يحتاج موافقة</option><option value="completed">مكتمل</option></select><input style={fieldStyle} value={draft.time} onChange={(event) => setDraft({ ...draft, time: event.target.value })} placeholder="الوقت أو الجدولة" /><textarea style={{ ...fieldStyle, minHeight: 110, paddingTop: 12 }} value={draft.evidence} onChange={(event) => setDraft({ ...draft, evidence: event.target.value })} placeholder="الوصف" /><button className="primary-action" onClick={() => onSave({ ...draft, id: draft.id || uid('step') })}>حفظ المهمة</button></div></section></div>;
-}
-
-function NotificationsPanel({ mission, onRead, onApprovals }) {
-  return <section className="glass-card mission-detail"><div className="section-header"><div><span className="section-eyebrow">Notifications</span><h2>الإشعارات والتنبيهات</h2><p style={{ color: 'rgba(235,242,255,.62)', marginTop: 8 }}>أي توقف أو موافقة أو تحديث مهم يظهر هنا.</p></div><Button variant="secondary" onClick={onApprovals}>فتح الموافقات</Button></div><div className="steps-list">{mission.notifications.slice().reverse().map((item) => <article key={item.id} className={`step-card ${item.status === 'unread' ? 'needs_approval' : 'completed'}`}><div className="step-index">!</div><div className="step-content"><div className="step-topline"><span className="risk-badge">{item.type}</span><span className="priority">{item.status === 'unread' ? 'جديد' : 'مقروء'}</span></div><h4>{item.title}</h4><p>{item.detail}</p><small>{item.createdAt}</small>{item.status === 'unread' && <div style={{ marginTop: 12 }}><Button variant="secondary" onClick={() => onRead(mission.id, item.id)}>مقروء</Button></div>}</div></article>)}</div></section>;
-}
-
-function ProgressView({ mission, missions, setSelected, runStep, onApprove, editStep, addStep, cancelStep, readNotice, busy, setView }) {
-  if (!mission) return null;
-  const smart = smartProgress(mission);
-  const step = currentStep(mission);
-  const openApprovals = mission.approvals.filter((item) => item.status === 'open');
-  return <main className="view"><section className="hero-card glass-card"><div className="hero-meta"><span className="live-dot" /> مركز المتابعة</div><h1>كل التطورات هنا.</h1><p>شريط تقدم ذكي، مستندات، إشعارات، موافقات، وتشغيل فوري لأي خطوة.</p><div className="command-box"><select style={fieldStyle} value={mission.id} onChange={(event) => setSelected(event.target.value)}>{missions.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select><button className="primary-action" onClick={() => runStep(mission.id)} disabled={busy}>{busy ? 'جاري التنفيذ...' : 'شغّل الخطوة التالية'}</button></div></section><section className="grid two-columns"><section className="glass-card next-card"><span className="section-eyebrow">Smart Progress</span><h2>{smart.percent}%</h2><p>{smart.label} — {smart.detail}</p><div className="progress-track"><span style={{ width: `${smart.percent}%`, background: `linear-gradient(90deg,${smart.color},#a78bfa)` }} /></div></section><section className="glass-card next-card"><span className="section-eyebrow">الخطوة الحالية</span><h2>{step?.title}</h2><p>{step?.evidence}</p><div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}><StatusPill status={step?.status} /><TypeBadge type={step?.type} /></div></section></section><NotificationsPanel mission={mission} onRead={readNotice} onApprovals={() => setView('approvals')} /><section className="glass-card mission-detail"><div className="section-header"><div><span className="section-eyebrow">Documents</span><h2>المخرجات الجاهزة</h2></div></div><div className="steps-list">{mission.outputs.map((output) => <article key={output.id} className="step-card completed"><div className="step-index">✦</div><div className="step-content"><div className="step-topline"><TypeBadge type="document" /><span className="priority">{output.status}</span></div><h4>{output.title}</h4><p>{output.detail}</p><small>{output.type}</small><div style={{ display: 'flex', gap: 10, marginTop: 12 }}><Button variant="secondary" onClick={() => downloadOutput(mission, output)}>تحميل</Button><Button variant="secondary" onClick={() => copyOutput(mission, output)}>نسخ</Button></div></div></article>)}</div></section><section className="glass-card mission-detail"><div className="section-header"><div><span className="section-eyebrow">Tasks</span><h2>إضافة / تعديل / إلغاء / تنفيذ</h2></div><Button onClick={() => addStep(mission.id)}>إضافة مهمة</Button></div><div className="steps-list">{mission.steps.map((task, index) => <article key={task.id} className={`step-card ${task.status}`}><div className="step-index">{index + 1}</div><div className="step-content"><div className="step-topline"><TypeBadge type={task.type} /><StatusPill status={task.status} /></div><h4>{task.title}</h4><p>{task.evidence}</p><small>{task.time}</small><div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>{task.status !== 'completed' && task.status !== 'canceled' && task.type !== 'approval' && <Button onClick={() => runStep(mission.id, task.id)}>نفذ الآن</Button>}{(task.type === 'approval' || task.status === 'needs_approval') && <Button onClick={() => setView('approvals')}>اعتماد</Button>}<Button variant="secondary" onClick={() => editStep(mission.id, task)}>تعديل</Button>{task.status !== 'canceled' && <Button variant="secondary" onClick={() => cancelStep(mission.id, task.id)}>إلغاء</Button>}</div></div></article>)}</div></section>{openApprovals.length > 0 && <section className="glass-card next-card"><span className="section-eyebrow">موافقات مفتوحة</span><h2>{openApprovals.length} موافقة</h2><p>لا يمكن تجاوزها. افتح تبويب اعتماد لمعالجتها.</p><button className="primary-action" onClick={() => setView('approvals')}>فتح الموافقات</button></section>}</main>;
-}
-
-function AgentLiveView({ mission, missions, setSelected, toggleAgent, runCycle }) {
-  return <main className="view"><section className="hero-card glass-card"><div className="hero-meta"><span className="live-dot" /> Agent Live</div><h1>وكيل مباشر للمراقبة.</h1><p>يشغل مراقبة حية، يضيف إشعارات وسجل تدقيق، ويستطيع تشغيل دورة فحص يدوية.</p><div className="command-box"><select style={fieldStyle} value={mission?.id || ''} onChange={(event) => setSelected(event.target.value)}>{missions.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select><button className="primary-action" onClick={() => toggleAgent(mission.id)}>{mission.agent.live ? 'إيقاف الوكيل' : 'تشغيل الوكيل'}</button></div></section><section className="grid two-columns"><section className="glass-card next-card"><span className="section-eyebrow">Live Status</span><h2>{mission.agent.live ? 'Live الآن' : 'متوقف'}</h2><p>آخر نبضة: {mission.agent.lastBeat} — الدورات: {mission.agent.cycles}</p><Button onClick={() => runCycle(mission.id)}>شغّل دورة الآن</Button></section><section className="glass-card next-card"><span className="section-eyebrow">Active Agents</span><h2>{missions.filter((item) => item.agent.live).length}</h2><p>الوكيل لا يتجاوز الموافقات ولا ينفذ إجراء حساس بدونك.</p></section></section></main>;
-}
-
-function ApprovalsView({ missions, decide }) {
-  const approvals = missions.flatMap((mission) => mission.approvals.map((approval) => ({ ...approval, missionId: mission.id, mission: mission.title }))).filter((item) => item.status === 'open');
-  return <main className="view"><section className="hero-card glass-card"><span className="section-eyebrow">Approval Center</span><h1>موافقات متقدمة.</h1><p>اعتماد، رفض، طلب تعديل، أو تحويل. كل قرار يذهب إلى سجل التدقيق والتنبيهات.</p></section><section className="approval-list">{approvals.map((approval) => <article key={approval.id} className="approval-card glass-card"><div><span className="risk-badge">{approval.risk}</span><h2>{approval.title}</h2><p>{approval.detail}</p><small>{approval.mission} — {approval.createdAt}</small></div><div style={{ display: 'grid', gap: 10 }}><Button onClick={() => decide(approval.missionId, approval.id, 'approved')}>اعتماد</Button><Button variant="secondary" onClick={() => decide(approval.missionId, approval.id, 'changes_requested')}>طلب تعديل</Button><Button variant="secondary" onClick={() => decide(approval.missionId, approval.id, 'delegated')}>تحويل</Button><Button variant="secondary" onClick={() => decide(approval.missionId, approval.id, 'rejected')}>رفض</Button></div></article>)}{!approvals.length && <article className="approval-card glass-card"><div><span className="risk-badge">واضح</span><h2>لا توجد موافقات مفتوحة</h2><p>كل الموافقات مغلقة الآن.</p></div></article>}</section></main>;
-}
-
-function AuditView({ missions }) {
-  const rows = missions.flatMap((mission) => mission.audit.map((entry) => ({ ...entry, mission: mission.title }))).reverse();
-  return <main className="view"><section className="hero-card glass-card"><span className="section-eyebrow">Audit Trail</span><h1>سجل تدقيق كامل.</h1><p>أي إضافة، تعديل، إلغاء، موافقة، تشغيل وكيل، أو تنفيذ خطوة يتم تسجيله هنا.</p></section><section className="glass-card mission-detail"><div className="steps-list">{rows.map((entry) => <article key={entry.id} className="step-card"><div className="step-index">≋</div><div className="step-content"><div className="step-topline"><span className="priority">{entry.action}</span><small>{entry.time}</small></div><h4>{entry.target}</h4><p>{entry.details}</p><small>{entry.actor} — {entry.mission}</small></div></article>)}</div></section></main>;
-}
-function SystemView() {
-  const items = [['Approval Engine', 'اعتماد/رفض/تعديل/تحويل', 'Ready'], ['Agent Live', 'مراقبة مباشرة ودورات تشغيل', 'Ready'], ['Task Control', 'إضافة/تعديل/إلغاء/تنفيذ فوري', 'Ready'], ['Audit Trail', 'سجل تدقيق كامل', 'Ready'], ['Smart Progress', 'شريط تقدم ذكي', 'Ready'], ['Notifications', 'تنبيهات داخلية', 'Ready']];
-  return <main className="view"><section className="hero-card glass-card"><span className="section-eyebrow">System</span><h1>تمت ترقية نظام التنفيذ.</h1><p>المزايا المطلوبة أصبحت داخل الواجهة وجاهزة للاستخدام.</p></section><section className="system-grid">{items.map(([title, detail, state]) => <article key={title} className="glass-card integration-card"><div className="integration-icon">✦</div><h2>{title}</h2><p>{detail}</p><span>{state}</span></article>)}</section></main>;
-}
-function MissionsView({ missions, setSelected }) {
-  return <main className="view"><section className="hero-card glass-card"><span className="section-eyebrow">Missions</span><h1>ملفات التنفيذ.</h1><p>اختر أي Mission لمتابعتها من لوحة تقدم.</p></section><section className="mission-list glass-card">{missions.map((mission) => <button key={mission.id} className="mission-card" onClick={() => setSelected(mission.id)}><div className="mission-card-top"><StatusPill status={mission.status} /><span className="priority">{mission.priority}</span></div><h3>{mission.title}</h3><p>{mission.command}</p><div className="progress-track"><span style={{ width: `${missionProgress(mission)}%` }} /></div><div className="mission-card-bottom"><span>{missionProgress(mission)}%</span><span>{mission.due}</span></div></button>)}</section></main>;
-}
-function ExecutionLog({ missions }) {
-  const logs = missions.flatMap((mission) => mission.logs.map((log) => ({ log, mission: mission.title }))).slice(-8).reverse();
-  return <aside className="execution-log glass-card"><span className="section-eyebrow">Execution Log</span><h3>سجل التنفيذ</h3><div>{logs.map((item, index) => <p key={index}><strong>{item.mission}</strong><span>{item.log}</span></p>)}</div></aside>;
-}
-
 export default function EnhancedApp() {
-  const [view, setView] = useState('progress');
-  const [command, setCommand] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [editor, setEditor] = useState(null);
+  const [view, setView] = useState('workspace');
+  const [command, setCommand] = useState('تحويل المؤسسة إلى شركة في السعودية');
   const [missions, setMissions] = useState(() => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('focus-flow-execution-os-v2');
-      const parsed = stored ? JSON.parse(stored) : [sampleMission];
-      return Array.isArray(parsed) ? parsed.map(normalizeMission) : [sampleMission];
-    } catch { return [sampleMission]; }
+      const stored = localStorage.getItem(KEY);
+      return stored ? JSON.parse(stored).map(normalizeMission) : [createMission('تحويل المؤسسة إلى شركة في السعودية')];
+    } catch {
+      return [createMission('تحويل المؤسسة إلى شركة في السعودية')];
+    }
   });
-  const [selected, setSelected] = useState(() => missions[0]?.id);
-  useEffect(() => localStorage.setItem(STORAGE_KEY, JSON.stringify(missions)), [missions]);
-  const selectedMission = useMemo(() => missions.find((item) => item.id === selected) || missions[0], [missions, selected]);
-  const updateMission = (missionId, updater) => setMissions((current) => current.map((mission) => mission.id === missionId ? normalizeMission(updater(mission)) : mission));
+  const [missionId, setMissionId] = useState(missions[0]?.id);
+  const [docId, setDocId] = useState(null);
+  const mission = useMemo(() => missions.find((m) => m.id === missionId) || missions[0], [missions, missionId]);
+  const selectedDoc = useMemo(() => mission.docs.find((d) => d.id === docId) || mission.docs[0], [mission, docId]);
+  useEffect(() => localStorage.setItem(KEY, JSON.stringify(missions)), [missions]);
 
-  async function createMission() {
-    if (!command.trim()) return;
-    setBusy(true);
-    let mission;
-    try {
-      const response = await fetch('/api/mission-plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ command }) });
-      const data = await response.json();
-      mission = normalizeMission(data.mission || buildMission(command));
-      mission.audit = [...mission.audit, audit('CREATE_MISSION_API', mission.title, 'تم إنشاء المهمة عبر API')];
-    } catch {
-      mission = buildMission(command);
-      mission.logs.push(`${timeNow()} - تم استخدام التخطيط المحلي.`);
-    }
-    setMissions((current) => [mission, ...current]);
-    setSelected(mission.id);
-    setCommand('');
-    setView('progress');
-    setBusy(false);
+  function updateMission(updater) {
+    setMissions((all) => all.map((m) => m.id === mission.id ? updater(m) : m));
   }
-
-  async function runStep(missionId, stepId) {
-    const mission = missions.find((item) => item.id === missionId);
-    if (!mission) return;
-    setBusy(true);
-    try {
-      const response = await fetch('/api/run-step', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mission, stepId }) });
-      const data = await response.json();
-      const next = normalizeMission(data.mission);
-      next.audit = [...next.audit, audit('RUN_STEP_API', stepId || 'next', 'تم تشغيل خطوة عبر API')];
-      setMissions((current) => current.map((item) => item.id === missionId ? next : item));
-    } catch {
-      updateMission(missionId, (old) => {
-        const step = old.steps.find((item) => item.id === stepId) || old.steps.find((item) => item.status === 'running' || item.status === 'pending');
-        if (!step) return old;
-        if (step.type === 'approval' || step.status === 'needs_approval') {
-          return { ...old, notifications: [...old.notifications, notification('موافقة مطلوبة', step.title, 'warning')], audit: [...old.audit, audit('BLOCKED_APPROVAL', step.title, 'محاولة تشغيل خطوة تحتاج موافقة')] };
-        }
-        return {
-          ...old,
-          steps: old.steps.map((item) => item.id === step.id ? { ...item, status: 'completed', evidence: `${item.evidence} تم تنفيذها الآن.` } : item),
-          outputs: [...old.outputs, { id: uid('output'), type: typeLabels[step.type], title: `نتيجة: ${step.title}`, status: 'جاهز', detail: step.evidence }],
-          notifications: [...old.notifications, notification('تم تنفيذ خطوة', step.title, 'success')],
-          audit: [...old.audit, audit('RUN_STEP', step.title, 'تم تنفيذ خطوة')],
-          logs: [...old.logs, `${timeNow()} - تم تنفيذ ${step.title}.`]
-        };
-      });
-    }
-    setBusy(false);
+  function createNewMission() {
+    const next = createMission(command);
+    setMissions((all) => [next, ...all]);
+    setMissionId(next.id);
+    setDocId(next.docs[0]?.id);
+    setView('workspace');
   }
-
-  function approvalDecision(missionId, approvalId, decision) {
-    updateMission(missionId, (mission) => {
-      const approval = mission.approvals.find((item) => item.id === approvalId);
-      return {
-        ...mission,
-        status: decision === 'approved' ? mission.status : 'blocked',
-        approvals: mission.approvals.map((item) => item.id === approvalId ? { ...item, status: decision, decidedAt: timeNow() } : item),
-        notifications: [...mission.notifications, notification('قرار موافقة', `${approval?.title}: ${statusLabels[decision]}`, decision === 'approved' ? 'success' : 'warning')],
-        outputs: [...mission.outputs, { id: uid('output'), type: 'موافقة', title: `قرار: ${approval?.title}`, status: statusLabels[decision], detail: `تم تسجيل قرار الموافقة: ${statusLabels[decision]}` }],
-        audit: [...mission.audit, audit(`APPROVAL_${decision.toUpperCase()}`, approval?.title || approvalId, `قرار موافقة: ${statusLabels[decision]}`)],
-        logs: [...mission.logs, `${timeNow()} - ${statusLabels[decision]}: ${approval?.title}.`]
-      };
+  function refreshDocuments() {
+    updateMission((m) => {
+      const next = { ...m, events: [...m.events, event('GENERATE_DOCS', 'توليد المستندات', 'تم إعادة بناء المستندات من بيانات المهمة')] };
+      return { ...next, docs: buildDocuments(next) };
     });
-    setView('progress');
+    setView('docs');
   }
-
-  function saveStep(step) {
-    updateMission(editor.missionId, (mission) => {
-      const exists = mission.steps.some((item) => item.id === step.id);
-      return { ...mission, steps: exists ? mission.steps.map((item) => item.id === step.id ? step : item) : [...mission.steps, step], notifications: [...mission.notifications, notification(exists ? 'تم تعديل مهمة' : 'تم إضافة مهمة', step.title, 'info')], audit: [...mission.audit, audit(exists ? 'EDIT_TASK' : 'ADD_TASK', step.title, exists ? 'تعديل مهمة' : 'إضافة مهمة')], logs: [...mission.logs, `${timeNow()} - ${exists ? 'تعديل' : 'إضافة'} مهمة: ${step.title}.`] };
+  function runStep(stepId) {
+    updateMission((m) => {
+      const step = m.steps.find((s) => s.id === stepId) || m.steps.find((s) => s.status === 'running' || s.status === 'pending');
+      if (!step) return m;
+      if (step.status === 'approval') {
+        return { ...m, events: [...m.events, event('BLOCKED', 'موافقة مطلوبة', step.title)] };
+      }
+      const steps = m.steps.map((s) => s.id === step.id ? { ...s, status: 'completed', result: `تم تنفيذ ${s.title} وإنشاء مستند نتيجة.` } : s);
+      const resultDoc = makeDoc(m, 'step', `نتيجة: ${step.title}`, `# نتيجة خطوة\n\nالمهمة: ${m.title}\nالخطوة: ${step.title}\nوقت التنفيذ: ${now()}\n\nتم تنفيذ الخطوة وإنتاج هذا المستند فعليًا داخل Document Vault.`);
+      const next = { ...m, steps, docs: [...m.docs, resultDoc], events: [...m.events, event('RUN_STEP', 'تنفيذ خطوة', `تم تنفيذ ${step.title} وإنشاء مستند نتيجة`)] };
+      return { ...next, docs: [...buildDocuments(next), resultDoc] };
     });
-    setEditor(null);
+    setView('docs');
   }
-  const addStep = (missionId) => setEditor({ missionId });
-  const editStep = (missionId, step) => setEditor({ missionId, step });
-  const cancelStep = (missionId, stepId) => updateMission(missionId, (mission) => { const step = mission.steps.find((item) => item.id === stepId); return { ...mission, steps: mission.steps.map((item) => item.id === stepId ? { ...item, status: 'canceled' } : item), notifications: [...mission.notifications, notification('تم إلغاء مهمة', step?.title || stepId, 'warning')], audit: [...mission.audit, audit('CANCEL_TASK', step?.title || stepId, 'إلغاء مهمة')], logs: [...mission.logs, `${timeNow()} - إلغاء مهمة: ${step?.title}.`] }; });
-  const readNotice = (missionId, noticeId) => updateMission(missionId, (mission) => ({ ...mission, notifications: mission.notifications.map((item) => item.id === noticeId ? { ...item, status: 'read' } : item), audit: [...mission.audit, audit('READ_NOTIFICATION', noticeId, 'قراءة إشعار')] }));
-  const toggleAgent = (missionId) => updateMission(missionId, (mission) => { const live = !mission.agent.live; return { ...mission, agent: { ...mission.agent, live, status: live ? 'Live' : 'Stopped', lastBeat: timeNow() }, notifications: [...mission.notifications, notification(live ? 'Agent Live بدأ' : 'Agent Live توقف', mission.title, 'info')], audit: [...mission.audit, audit(live ? 'AGENT_START' : 'AGENT_STOP', mission.title, live ? 'تشغيل وكيل' : 'إيقاف وكيل')] }; });
-  const agentCycle = (missionId) => updateMission(missionId, (mission) => ({ ...mission, agent: { ...mission.agent, live: true, cycles: mission.agent.cycles + 1, lastBeat: timeNow() }, notifications: [...mission.notifications, notification('دورة Agent Live', 'تم فحص الحالة', 'success')], audit: [...mission.audit, audit('AGENT_CYCLE', mission.title, 'دورة مراقبة')], logs: [...mission.logs, `${timeNow()} - Agent Live نفذ دورة مراقبة.`] }));
 
-  return <div className="app-shell"><TopBar view={view} setView={setView} /><div className="app-grid"><div className="main-panel">{view === 'command' && <CommandView command={command} setCommand={setCommand} onCreate={createMission} busy={busy} setView={setView} missions={missions} selectedMission={selectedMission} />}{view === 'progress' && <ProgressView mission={selectedMission} missions={missions} setSelected={setSelected} runStep={runStep} onApprove={approvalDecision} editStep={editStep} addStep={addStep} cancelStep={cancelStep} readNotice={readNotice} busy={busy} setView={setView} />}{view === 'agent' && <AgentLiveView mission={selectedMission} missions={missions} setSelected={setSelected} toggleAgent={toggleAgent} runCycle={agentCycle} />}{view === 'approvals' && <ApprovalsView missions={missions} decide={approvalDecision} />}{view === 'audit' && <AuditView missions={missions} />}{view === 'missions' && <MissionsView missions={missions} setSelected={setSelected} />}{view === 'system' && <SystemView />}</div><ExecutionLog missions={missions} /></div><MobileNav view={view} setView={setView} /><TaskEditor editor={editor} onSave={saveStep} onClose={() => setEditor(null)} /></div>;
+  return <div className="app-shell"><Top view={view} setView={setView} /><div className="app-grid"><div className="main-panel">
+    {view === 'command' && <main className="view"><Card className="hero-card"><div className="hero-meta"><span className="live-dot" /> Command</div><h1>إنشاء ملف تنفيذ ومستندات فعلية</h1><p>كل Mission تنشئ خطة ومتطلبات وموافقات وتقرير قابل للفتح والتحميل.</p><div className="command-box"><textarea value={command} onChange={(e) => setCommand(e.target.value)} /><button className="primary-action" onClick={createNewMission}>إنشاء الآن</button></div></Card></main>}
+
+    {view === 'workspace' && <main className="view"><Card className="hero-card"><div className="hero-meta"><span className="live-dot" /> Mission Workspace</div><h1>{mission.title}</h1><p>{mission.command}</p><div className="command-box"><button className="primary-action" onClick={refreshDocuments}>توليد المستندات الآن</button><button className="secondary-action" onClick={() => setView('docs')}>فتح المستندات</button></div></Card><section className="grid two-columns"><Card className="next-card"><span className="section-eyebrow">التقدم</span><h2>{progress(mission)}%</h2><div className="progress-track"><span style={{ width: `${progress(mission)}%` }} /></div></Card><Card className="next-card"><span className="section-eyebrow">المستندات</span><h2>{mission.docs.length}</h2><p>مستندات فعلية قابلة للفتح والتحميل.</p></Card></section><Card className="mission-detail"><div className="section-header"><div><span className="section-eyebrow">Document Vault</span><h2>المستندات المتوفرة</h2></div></div><div className="steps-list">{mission.docs.map((doc) => <article key={doc.id} className="step-card completed"><div className="step-index">📄</div><div className="step-content"><div className="step-topline"><TypeBadge value={doc.type} /><Badge value="ready" /></div><h4>{doc.title}</h4><p>{doc.fileName}</p><div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 12 }}><Button onClick={() => { setDocId(doc.id); setView('docs'); }}>فتح</Button><a className="secondary-action" href={downloadHref(doc)} download={doc.fileName}>تحميل</a><Button variant="secondary" onClick={() => copyText(doc.body)}>نسخ</Button></div></div></article>)}</div></Card></main>}
+
+    {view === 'docs' && <main className="view"><Card className="hero-card"><span className="section-eyebrow">Document Vault</span><h1>المستندات الفعلية</h1><p>اختر مستندًا واقرأ محتواه كاملًا هنا.</p></Card><section className="grid two-columns"><Card className="next-card"><div className="steps-list">{mission.docs.map((doc) => <article key={doc.id} className={`step-card ${selectedDoc?.id === doc.id ? 'running' : 'completed'}`} onClick={() => setDocId(doc.id)}><div className="step-index">📄</div><div className="step-content"><h4>{doc.title}</h4><p>{doc.fileName}</p></div></article>)}</div></Card><Card className="mission-detail"><div className="section-header"><div><span className="section-eyebrow">Reader</span><h2>{selectedDoc?.title}</h2><p style={{ color: 'rgba(235,242,255,.62)' }}>{selectedDoc?.fileName}</p></div></div>{selectedDoc && <><div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}><a className="primary-action small" href={downloadHref(selectedDoc)} download={selectedDoc.fileName}>تحميل .md</a><Button variant="secondary" onClick={() => copyText(selectedDoc.body)}>نسخ</Button></div><article style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 18, padding: 18, whiteSpace: 'pre-wrap', lineHeight: 1.9, color: 'rgba(235,242,255,.88)' }}>{selectedDoc.body}</article></>}</Card></section></main>}
+
+    {view === 'plan' && <main className="view"><Card className="hero-card"><span className="section-eyebrow">Execution Plan</span><h1>الخطة متعددة المراحل</h1><p>اضغط نفذ الآن وسيتم إنشاء مستند نتيجة فعلي.</p></Card><Card className="mission-detail"><div className="steps-list">{mission.steps.map((step, index) => <article key={step.id} className={`step-card ${step.status}`}><div className="step-index">{index + 1}</div><div className="step-content"><div className="step-topline"><Badge value={step.status} /></div><h4>{step.title}</h4><p>{step.result || step.note}</p><Button onClick={() => runStep(step.id)} disabled={step.status === 'completed'}>{step.status === 'completed' ? 'تم' : 'نفذ الآن'}</Button></div></article>)}</div></Card></main>}
+
+    {view === 'audit' && <main className="view"><Card className="hero-card"><span className="section-eyebrow">Audit</span><h1>سجل التدقيق</h1></Card><Card className="mission-detail"><div className="steps-list">{mission.events.slice().reverse().map((eventItem) => <article key={eventItem.id} className="step-card"><div className="step-index">≋</div><div className="step-content"><h4>{eventItem.action}: {eventItem.title}</h4><p>{eventItem.detail}</p><small>{eventItem.at}</small></div></article>)}</div></Card></main>}
+  </div><aside className="execution-log glass-card"><span className="section-eyebrow">Execution Log</span><h3>{mission.title}</h3><p><strong>Documents</strong><span>{mission.docs.length} مستند فعلي</span></p><p><strong>Progress</strong><span>{progress(mission)}%</span></p></aside></div><Bottom view={view} setView={setView} /></div>;
 }
